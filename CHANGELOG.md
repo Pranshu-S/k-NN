@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Introduce system-generated search pipeline processor to automatically exclude knn_vector fields from _source in search responses [#3152](https://github.com/opensearch-project/k-NN/pull/3152)
 * Parameterize integration test framework for compression level [#3416](https://github.com/opensearch-project/k-NN/pull/3416)
 * Introduce extensible VectorSearchEngine API [#3288](https://github.com/opensearch-project/k-NN/pull/3443)
+* Bounded exact search for selective filtered Lucene FLOAT k-NN: when a filter matches at most max(1000, 10*k) live documents on a shard, score them exactly (guaranteed recall) instead of filtered ANN; zero matches short-circuit to MatchNoDocsQuery. Larger filters and all other configurations are unchanged (PR link TBD)
 
 ### Maintenance
 * Upgrade Lucene to 10.5.0 [#3411](https://github.com/opensearch-project/k-NN/pull/3411)

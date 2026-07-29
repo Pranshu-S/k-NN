@@ -160,7 +160,27 @@ public class KNNQueryFactory extends BaseQueryFactory {
             log.warn("Rescoring is not supported when [{}] is set to true", EXPAND_NESTED);
             return luceneKnnQuery;
         }
-        return needsRescore ? new RescoreKNNVectorQuery(luceneKnnQuery, fieldName, k, vector, shardId) : luceneKnnQuery;
+        if (needsRescore) {
+            return new RescoreKNNVectorQuery(luceneKnnQuery, fieldName, k, vector, shardId);
+        }
+
+        // Cardinality-aware planning for the supported MVP surface (Lucene engine, FLOAT vectors,
+        // non-nested, top-k, filter present, rescore disabled). The actual approximate-vs-exact-vs-
+        // match-none decision is deferred to execution time (createWeight), where the authoritative
+        // shard searcher and a single reader generation allow bounded filter counting AND reuse of the
+        // collected filter state by the exact path. See BoundedExactKnnFloatVectorQuery. Every
+        // unsupported configuration keeps the existing approximate query unchanged.
+        if (BoundedExactSearchDecider.isSupported(
+            vectorDataType,
+            createQueryRequest.getKnnEngine(),
+            filterQuery,
+            parentFilter,
+            needsRescore,
+            expandNested
+        )) {
+            return new BoundedExactKnnFloatVectorQuery(luceneKnnQuery, filterQuery, fieldName, k, vector, shardId);
+        }
+        return luceneKnnQuery;
 
     }
 
