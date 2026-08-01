@@ -127,8 +127,16 @@ final class MemOptimizedNativeIndexBuildStrategy implements NativeIndexBuildStra
             });
 
         } catch (IndexBuildAbortedException indexBuildAbortedException) {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                JNIService.free(indexMemoryAddress, engine);
+                return null;
+            });
             throw indexBuildAbortedException;
         } catch (Exception exception) {
+            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+                JNIService.free(indexMemoryAddress, engine);
+                return null;
+            });
             throw new RuntimeException(
                 "Failed to build index, field name [" + indexInfo.getField() + "], parameters " + indexInfo,
                 exception
