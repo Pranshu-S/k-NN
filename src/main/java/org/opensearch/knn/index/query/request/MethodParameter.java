@@ -21,9 +21,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER_EF_SEARCH;
+import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER_FILTERED_SEARCH_MODE;
 import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER_NPROBES;
 import static org.opensearch.knn.index.query.KNNQueryBuilder.EF_SEARCH_FIELD;
+import static org.opensearch.knn.index.query.KNNQueryBuilder.FILTERED_SEARCH_MODE_FIELD;
 import static org.opensearch.knn.index.query.KNNQueryBuilder.NPROBE_FIELD;
+import org.opensearch.knn.index.query.FilteredSearchMode;
 
 /**
  * MethodParameters are engine and algorithm related parameters that clients can pass in knn query
@@ -68,6 +71,30 @@ public enum MethodParameter {
             ValidationException validationException = new ValidationException();
             validationException.addValidationError(METHOD_PARAMETER_NPROBES + " should be greater than 0");
             return validationException;
+        }
+    },
+
+    // EXPERIMENTAL (POC): filtered HNSW traversal policy for native Faiss.
+    // Value must be "standard" or "acorn"; unknown values fail at parse time.
+    // Query-context checks (acorn-requires-filter, engine/method/query-type) are
+    // enforced in KNNQueryBuilder#doToQuery via FilteredSearchMode#validateForQuery.
+    FILTERED_SEARCH_MODE(METHOD_PARAMETER_FILTERED_SEARCH_MODE, Version.CURRENT, FILTERED_SEARCH_MODE_FIELD) {
+        @Override
+        public String parse(Object value) {
+            // Canonicalize + reject unknown values (no silent fallback).
+            return FilteredSearchMode.fromWireName(String.valueOf(value)).getWireName();
+        }
+
+        @Override
+        public ValidationException validate(Object value) {
+            try {
+                parse(value);
+                return null;
+            } catch (final IllegalArgumentException e) {
+                final ValidationException validationException = new ValidationException();
+                validationException.addValidationError(e.getMessage());
+                return validationException;
+            }
         }
     };
 

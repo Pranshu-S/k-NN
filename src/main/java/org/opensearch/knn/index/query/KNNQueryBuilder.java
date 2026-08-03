@@ -56,6 +56,7 @@ import static org.opensearch.knn.common.KNNConstants.EXPAND_NESTED;
 import static org.opensearch.knn.common.KNNConstants.MAX_DISTANCE;
 import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER;
 import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER_EF_SEARCH;
+import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER_FILTERED_SEARCH_MODE;
 import static org.opensearch.knn.common.KNNConstants.METHOD_PARAMETER_NPROBES;
 import static org.opensearch.knn.common.KNNConstants.MIN_SCORE;
 import static org.opensearch.knn.common.KNNValidationUtil.validateByteVectorValue;
@@ -83,6 +84,8 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> imple
     public static final ParseField MIN_SCORE_FIELD = new ParseField(MIN_SCORE);
     public static final ParseField EF_SEARCH_FIELD = new ParseField(METHOD_PARAMETER_EF_SEARCH);
     public static final ParseField NPROBE_FIELD = new ParseField(METHOD_PARAMETER_NPROBES);
+    // EXPERIMENTAL (POC): filtered HNSW traversal policy (standard|acorn).
+    public static final ParseField FILTERED_SEARCH_MODE_FIELD = new ParseField(METHOD_PARAMETER_FILTERED_SEARCH_MODE);
     public static final ParseField METHOD_PARAMS_FIELD = new ParseField(METHOD_PARAMETER);
     public static final ParseField RESCORE_FIELD = new ParseField(RESCORE_PARAMETER);
     public static final ParseField RESCORE_OVERSAMPLE_FIELD = new ParseField(RESCORE_OVERSAMPLE_PARAMETER);
@@ -476,6 +479,17 @@ public class KNNQueryBuilder extends AbstractQueryBuilder<KNNQueryBuilder> imple
                 );
             }
         }
+
+        // EXPERIMENTAL (POC): validate an explicit filtered_search_mode=acorn request.
+        // Needs query context (engine/method/filter/query-type), so it runs here rather
+        // than at the REST method-parameter layer. No silent fallback on invalid acorn.
+        FilteredSearchMode.validateForQuery(
+            methodParameters,
+            knnEngine,
+            method,
+            this.filter != null,
+            this.maxDistance != null || this.minScore != null
+        );
 
         if (this.maxDistance != null || this.minScore != null) {
             knnVectorFieldType.validateSupportRadialSearch(knnEngine);

@@ -25,6 +25,7 @@
 #include "faiss/impl/IDSelector.h"
 #include "faiss/IndexIVFPQ.h"
 #include "commons.h"
+#include "acorn_hnsw.h"  // EXPERIMENTAL (POC): ACORN filtered traversal policy
 #include "faiss/IndexBinaryIVF.h"
 #include "faiss/IndexBinaryHNSW.h"
 #include "faiss/invlists/InvertedLists.h"
@@ -819,6 +820,13 @@ jobjectArray knn_jni::faiss_wrapper::QueryIndex_WithFilter(knn_jni::JNIUtilInter
         std::unique_ptr<faiss::IDGrouperBitmap> idGrouper;
         std::vector<uint64_t> idGrouperBitmap;
         auto hnswReader = dynamic_cast<const faiss::IndexHNSW*>(indexReader->index);
+        // EXPERIMENTAL (POC): select the filtered HNSW traversal policy.
+        std::string filteredMode = knn_jni::FILTERED_SEARCH_MODE_STANDARD;
+        if (hnswReader != nullptr) {
+            filteredMode = knn_jni::commons::getStringMethodParameter(
+                env, jniUtil, methodParams, knn_jni::FILTERED_SEARCH_MODE, knn_jni::FILTERED_SEARCH_MODE_STANDARD);
+        }
+        const bool useAcorn = (filteredMode == knn_jni::FILTERED_SEARCH_MODE_ACORN);
         if(hnswReader) {
             // Query param efsearch supersedes ef_search provided during index setting.
             hnswParams.efSearch = knn_jni::commons::getIntegerMethodParameter(env, jniUtil, methodParams, EF_SEARCH, hnswReader->hnsw.efSearch);
@@ -831,7 +839,7 @@ jobjectArray knn_jni::faiss_wrapper::QueryIndex_WithFilter(knn_jni::JNIUtilInter
         } else {
             auto ivfReader = dynamic_cast<const faiss::IndexIVF*>(indexReader->index);
             auto ivfFlatReader = dynamic_cast<const faiss::IndexIVFFlat*>(indexReader->index);
-            
+
             if(ivfReader || ivfFlatReader) {
                 int indexNprobe = ivfReader == nullptr ? ivfFlatReader->nprobe : ivfReader->nprobe;
                 ivfParams.nprobe = commons::getIntegerMethodParameter(env, jniUtil, methodParams, NPROBES, indexNprobe);
@@ -840,7 +848,25 @@ jobjectArray knn_jni::faiss_wrapper::QueryIndex_WithFilter(knn_jni::JNIUtilInter
             }
         }
         try {
-            indexReader->search(1, rawQueryvector, kJ, dis.data(), ids.data(), searchParameters);
+            // Selector-aware traversal policies live in the Faiss layer (acorn_hnsw.cpp);
+            // the JNI glue only selects one and reuses the existing IDSelector. All run
+            // over the standard OpenSearch-built graph (no build change). Nested (parent
+            // grouping) is not supported under these modes in this POC (rejected in Java).
+            const bool bench = knn_jni::acorn::benchmark_stats_enabled();
+            if (useAcorn) {
+                // ACORN-1 only (gamma=1) over the standard HNSW graph. A negative
+                // return is a hard error (bad args / unsupported gamma / bad index)
+                // — surface it rather than silently returning empty results.
+                const int acornRc = knn_jni::acorn::search(
+                    indexReader, rawQueryvector, kJ, hnswParams.efSearch, idSelector.get(),
+                    /*gamma=*/1, dis.data(), ids.data(), bench);
+                if (acornRc < 0) {
+                    throw std::runtime_error(
+                        "ACORN filtered_search_mode failed (code " + std::to_string(acornRc) + ")");
+                }
+            } else {
+                indexReader->search(1, rawQueryvector, kJ, dis.data(), ids.data(), searchParameters);
+            }
         } catch (...) {
             jniUtil->ReleaseFloatArrayElements(env, queryVectorJ, rawQueryvector, JNI_ABORT);
             jniUtil->ReleaseLongArrayElements(env, filterIdsJ, filteredIdsArray, JNI_ABORT);

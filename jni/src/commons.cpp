@@ -107,3 +107,14 @@ int knn_jni::commons::getIntegerMethodParameter(JNIEnv * env, knn_jni::JNIUtilIn
 
     return defaultValue;
 }
+
+std::string knn_jni::commons::getStringMethodParameter(JNIEnv * env, knn_jni::JNIUtilInterface * jniUtil, std::unordered_map<std::string, jobject> methodParams, std::string methodParam, std::string defaultValue) {
+    if (methodParams.empty()) {
+        return defaultValue;
+    }
+    auto it = methodParams.find(methodParam);
+    if (it != methodParams.end() && it->second != nullptr) {
+        return jniUtil->ConvertJavaObjectToCppString(env, it->second);
+    }
+    return defaultValue;
+}

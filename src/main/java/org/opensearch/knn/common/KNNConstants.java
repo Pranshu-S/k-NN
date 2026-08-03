@@ -33,6 +33,11 @@ public class KNNConstants {
     public static final String PROPERTIES = "properties";
     public static final String METHOD_PARAMETER = "method_parameters";
     public static final String METHOD_PARAMETER_EF_SEARCH = "ef_search";
+    // Experimental (POC): selects the filtered HNSW traversal policy for native Faiss.
+    // See research/acorn/opensearch-benchmark/OPENSEARCH_ACORN_POC_DESIGN.md
+    public static final String METHOD_PARAMETER_FILTERED_SEARCH_MODE = "filtered_search_mode";
+    public static final String FILTERED_SEARCH_MODE_STANDARD = "standard";
+    public static final String FILTERED_SEARCH_MODE_ACORN = "acorn";
     public static final String METHOD_PARAMETER_EF_CONSTRUCTION = "ef_construction";
     public static final String METHOD_PARAMETER_M = "m";
     public static final String METHOD_IVF = "ivf";
