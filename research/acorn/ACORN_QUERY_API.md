@@ -205,6 +205,83 @@ it just moves along it.
 
 ---
 
+# Phase 3 — RACORN (ASF + AEF over all three bases)
+
+RACORN adds two fallbacks to a base filtered traversal, to recover the regimes where
+graph search collapses (low selectivity, negative correlation). Applied to all three
+bases: **STD** (faiss-style in-filtering), **ACORN-1** (2-hop), **ACORN-γ** (dense 1-hop).
+Prototype: `research/acorn/src/bench_racorn.cpp`.
+
+## 1. How it was implemented
+- **ASF (Adaptive Search Fallback):** when a popped node's expansion yields fewer than
+  `M_base` passing neighbours, admit **stride-sampled *failing* neighbours** as transient
+  frontier bridges (never results) — keeps the walk alive when the predicate subgraph
+  fragments. Recovers recall without leaving the graph.
+- **AEF (Adaptive Exact Fallback):** track the running pass-ratio (passed/examined); once
+  enough nodes are explored, if it is below `aef_thr`, abandon the walk and run **exact
+  search over the eligible set** (recall 1.0; cheap when selectivity is tiny).
+
+## 2. How it would be queried
+Same `filtered_search_mode` channel (`racorn` / `racorn_plus`). Note **AEF is essentially
+OpenSearch's existing exact-search-below-a-cardinality-threshold** behaviour, surfaced
+inside the traversal; `aef_thr` is the trigger knob.
+
+## 3. Results (real SIFT1M, recall / latency; AEF fires → exact)
+
+### Negative correlation @ 100K (eligible far from query)
+| sel | STD | STD+ASF+AEF | ACORN-1 | +ASF | +ASF+AEF | γ | +ASF+AEF |
+|---|---|---|---|---|---|---|---|
+| 0.1% | 0.00 | **1.00**/135µs | 0.00 | 0.00 | **1.00**/127µs | 0.00 | **1.00**/131µs |
+| 5% | 0.00 | **1.00**/355µs | 0.00 | 0.00 | **1.00**/353µs | 0.00 | **1.00**/351µs |
+| 25% | 0.00 | **1.00**/973µs | 0.00 | 0.00 | **1.00**/979µs | 0.00 | **1.00**/970µs |
+
+Every base 0.00 → 1.00, **all via AEF** (exact). **ASF alone stays 0.00** — bridges cannot
+reach eligible nodes that are simply far away. Latency = exact cost over the eligible set
+(grows with selectivity).
+
+### No correlation @ 100K, low selectivity (ACORN collapse regime)
+| sel | ACORN-1 | +ASF | +ASF+AEF | γ | +ASF | +ASF+AEF |
+|---|---|---|---|---|---|---|
+| 0.1% | 0.04 | **0.93**/1033µs | **1.00**/135µs | 0.02 | **0.80**/1180µs | **1.00**/140µs |
+| 1% | 0.84 | **1.00**/1060µs | **1.00**/234µs | 0.44 | **1.00**/1196µs | **1.00**/233µs |
+
+Both fallbacks recover recall; **ASF via graph bridging (~1000µs), AEF via exact (~135µs)**.
+At very low selectivity AEF is cheaper *and* higher-recall, so it dominates ASF.
+
+### Moderate–high selectivity (5–25%, no correlation)
+All bases already ~1.00 without fallback (AEF does not fire; ASF barely changes it). Latency
+is set by the base traversal — γ usually fastest (dense graph), e.g. 10%: γ 303µs vs STD 560µs.
+
+### @ 1,000,000 (γ=8) — same shape, but AEF's exact cost grows with N × selectivity
+| corr | sel | base (STD/ACORN1/γ) | +ASF+AEF (all bases) |
+|---|---|---|---|
+| neg | 0.1% | 0.00 | **1.00** / ~1.2ms (exact) |
+| neg | 5% | 0.00 | **1.00** / ~4.9ms (exact over 5% of 1M) |
+| neg | 25% | 0.00 | **1.00** / ~11.2ms (exact over 250k) |
+| no | 0.1% | 0.01–0.43 | **1.00** / ~1.3ms (AEF) |
+| no | 1% | 0.14–0.92 | **1.00** / ~2.5ms (AEF); ASF alone recovers too (γ 0.14→1.00) |
+| no | 10–25% | ~1.00 | ~1.00 (base traversal; γ fastest, ~1.0ms) |
+
+Same conclusion at scale — **but note AEF's exact fallback is O(N·selectivity)**: cheap at
+low selectivity (tiny eligible set, ~1ms), but at **25% negative correlation on 1M it costs
+~11ms** (exact over 250k eligible). So AEF is the right move only when the eligible set is
+small; at high selectivity + negative correlation there is no cheap option (the graph can't
+reach the eligible region, and exact is inherently O(eligible)).
+
+## 4. Verdict on RACORN
+1. **AEF (exact fallback) is the workhorse** — base-agnostic, it fixes **both** hard regimes
+   (negative correlation *and* low selectivity), taking every base to recall 1.0, at exact
+   cost (cheap at low sel). But **AEF ≈ what OpenSearch already ships** (exact below a
+   cardinality threshold), so its value is largely already present.
+2. **ASF is secondary** — recovers scattered low-selectivity recall via the graph (useful
+   when N is huge and an exact scan is unaffordable), but it is expensive and **dominated by
+   AEF when exact is affordable**, and it does **nothing for negative correlation**.
+3. **With RACORN all three bases become robust** (recall 1.0 everywhere). The base then only
+   matters for latency in the moderate-selectivity band where the walk actually runs — where
+   γ is usually fastest (at 3.2× index size).
+
+---
+
 # Verdict
 
 | | ACORN-1 | ACORN-γ |
