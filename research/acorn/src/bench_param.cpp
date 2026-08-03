@@ -34,9 +34,12 @@ struct Sel: faiss::IDSelector{ const std::vector<char>* m; bool is_member(faiss:
 
 static int N,D=128,K=10,NC,NQ=50, MBASE=16;
 static std::vector<float> X,CTR,Q; static std::vector<int> CL; static int FC;
-// Per-base squared distances to the positive/negative correlation anchors.
-// Populated for BOTH real-vector and synthetic modes so mkfilter is unified.
-static std::vector<float> DPOS,DNEG; static bool REAL=false;
+static bool REAL=false;
+// PER-QUERY correlation: QORDER[i] = base ids sorted by distance to query i.
+// Positive corr = nearest to THIS query, negative = farthest from THIS query,
+// none = random. Queries are spread across the space (not one shared anchor), so
+// results average over many geometries and are stable across N.
+static std::vector<std::vector<int>> QORDER;
 
 static std::vector<int> parse_ints(const char* s){ std::vector<int> v; std::string t(s); size_t p=0;
     while(p<t.size()){ size_t c=t.find(',',p); std::string tok=t.substr(p,c==std::string::npos?c:c-p); if(!tok.empty())v.push_back(atoi(tok.c_str())); if(c==std::string::npos)break; p=c+1;} return v; }
@@ -53,14 +56,15 @@ static bool load_fvecs(const char* path,int want_n,std::vector<float>& out,int& 
     fclose(fp); d_out=d; return true;
 }
 
-// Correlation filter: eligible=cand base vectors nearest the pos anchor (positive),
-// nearest the neg anchor (negative), or random (no). Uses precomputed DPOS/DNEG.
-static std::vector<char> mkfilter(const std::string& corr,int cand){
+// Per-query correlation filter: eligible = cand base vectors nearest THIS query
+// (positive), farthest from THIS query (negative), or random (none).
+static std::vector<char> mk_mask(const std::string& corr,int cand,int qi){
     std::vector<char> m(N,0);
-    if(corr=="no"){ faiss::RandomGenerator r(7); int p=0; while(p<cand){int id=r.rand_int(N); if(!m[id]){m[id]=1;p++;}} return m; }
-    const std::vector<float>& dd=(corr=="pos")?DPOS:DNEG;
-    std::vector<std::pair<float,int>> ord(N); for(int i=0;i<N;i++)ord[i]={dd[i],i};
-    std::partial_sort(ord.begin(),ord.begin()+cand,ord.end()); for(int i=0;i<cand;i++)m[ord[i].second]=1; return m;
+    if(corr=="no"){ faiss::RandomGenerator r(1000+qi); int p=0; while(p<cand){int id=r.rand_int(N); if(!m[id]){m[id]=1;p++;}} return m; }
+    const std::vector<int>& ord=QORDER[qi];
+    if(corr=="pos"){ for(int j=0;j<cand;j++) m[ord[j]]=1; }        // nearest to this query
+    else           { for(int j=0;j<cand;j++) m[ord[N-1-j]]=1; }    // farthest from this query
+    return m;
 }
 
 int main(int argc,char**argv){
@@ -80,28 +84,35 @@ int main(int argc,char**argv){
     if(load_fvecs(path.c_str(),N,X,fd)){
         REAL=true; D=fd; N=(int)(X.size()/D);
         fprintf(stderr,"[bench_param] REAL vectors loaded: %s  n=%d d=%d\n",path.c_str(),N,D);
-        // positive anchor = a fixed real base vector; queries = NQ nearest base vectors to it
-        int a0=12345%N; std::vector<float> apos(&X[(size_t)a0*D],&X[(size_t)a0*D]+D);
-        DPOS.resize(N); for(int i=0;i<N;i++){float s=0;const float* xi=&X[(size_t)i*D];for(int j=0;j<D;j++){float df=apos[j]-xi[j];s+=df*df;}DPOS[i]=s;}
-        // negative anchor = farthest base vector from the positive anchor (a disjoint far region)
-        int aneg=0; float bd=-1; for(int i=0;i<N;i++)if(DPOS[i]>bd){bd=DPOS[i];aneg=i;}
-        std::vector<float> aneg_v(&X[(size_t)aneg*D],&X[(size_t)aneg*D]+D);
-        DNEG.resize(N); for(int i=0;i<N;i++){float s=0;const float* xi=&X[(size_t)i*D];for(int j=0;j<D;j++){float df=aneg_v[j]-xi[j];s+=df*df;}DNEG[i]=s;}
-        std::vector<std::pair<float,int>> ord(N); for(int i=0;i<N;i++)ord[i]={DPOS[i],i};
-        std::partial_sort(ord.begin(),ord.begin()+NQ,ord.end());
-        Q.resize((size_t)NQ*D); for(int i=0;i<NQ;i++){int id=ord[i].second;for(int j=0;j<D;j++)Q[(size_t)i*D+j]=X[(size_t)id*D+j];}
     } else {
         fprintf(stderr,"[bench_param] REAL data not at %s — synthetic Gaussian clusters\n",path.c_str());
         faiss::RandomGenerator rng(1);
         CTR.resize((size_t)NC*D); for(auto&v:CTR)v=rng.rand_float();
         X.resize((size_t)N*D); CL.resize(N); float sig=0.06f;
         for(int i=0;i<N;i++){int c=rng.rand_int(NC);CL[i]=c;for(int j=0;j<D;j++)X[(size_t)i*D+j]=CTR[(size_t)c*D+j]+sig*(rng.rand_float()*2-1);}
-        Q.resize((size_t)NQ*D); for(int i=0;i<NQ;i++)for(int j=0;j<D;j++)Q[(size_t)i*D+j]=CTR[0*D+j]+sig*(rng.rand_float()*2-1);
-        FC=1;float best=-1;for(int c=0;c<NC;c++){float s=0;for(int j=0;j<D;j++){float df=CTR[j]-CTR[(size_t)c*D+j];s+=df*df;}if(s>best){best=s;FC=c;}}
-        // unify mkfilter: pos=near cluster 0, neg=near farthest cluster FC
-        DPOS.resize(N); DNEG.resize(N);
-        for(int i=0;i<N;i++){float sp=0,sn=0;const float* xi=&X[(size_t)i*D];for(int j=0;j<D;j++){float dp=CTR[j]-xi[j];sp+=dp*dp;float dn=CTR[(size_t)FC*D+j]-xi[j];sn+=dn*dn;}DPOS[i]=sp;DNEG[i]=sn;}
     }
+    // ---- queries: real held-out set if present, else NQ base vectors strided across the space ----
+    {
+        std::string qpath=path; size_t sp=qpath.find("sift_base"); if(sp!=std::string::npos) qpath.replace(sp,9,"sift_query");
+        std::vector<float> QF; int qd=0;
+        if(REAL && load_fvecs(qpath.c_str(),NQ,QF,qd) && qd==D){
+            Q.assign(QF.begin(), QF.begin()+(size_t)NQ*D);
+            fprintf(stderr,"[bench_param] REAL held-out queries: %s  nq=%d\n",qpath.c_str(),NQ);
+        } else {
+            Q.resize((size_t)NQ*D); int stride=std::max(1,N/NQ);
+            for(int i=0;i<NQ;i++){ int id=(i*stride)%N; for(int j=0;j<D;j++)Q[(size_t)i*D+j]=X[(size_t)id*D+j]; }
+            fprintf(stderr,"[bench_param] queries = %d base vectors strided across the set\n",NQ);
+        }
+    }
+    // ---- per-query order of base ids by distance to that query (local pos/neg correlation) ----
+    QORDER.assign(NQ, {});
+    for(int i=0;i<NQ;i++){
+        std::vector<std::pair<float,int>> d(N); const float* q=&Q[(size_t)i*D];
+        for(int b=0;b<N;b++){ float s=0; const float* xb=&X[(size_t)b*D]; for(int j=0;j<D;j++){float df=q[j]-xb[j]; s+=df*df;} d[b]={s,b}; }
+        std::sort(d.begin(), d.end());
+        QORDER[i].resize(N); for(int b=0;b<N;b++) QORDER[i][b]=d[b].second;
+    }
+    fprintf(stderr,"[bench_param] per-query correlation orders computed (nq=%d)\n",NQ);
 
     // build the graph(s): standard for standard/acorn/racorn; acorn-gamma graph when gamma>1
     AcornIndex STD, GAM; build_standard_hnsw(STD,D,faiss::METRIC_L2,MBASE,100,N,X.data());
@@ -115,27 +126,29 @@ int main(int argc,char**argv){
 
     const char* corrs[3]={"neg","no","pos"};
     int cands[8]={ N/1000, N/200, N/100, N/50, N/20, N/10, N/4, N/2 }; // 0.1..50%
-    printf("\n#### n=%d  mode=%s  data=%s  (index: M=%d efc=100 d=%d L2; queries in pos-anchor region)\n",N,mode.c_str(),REAL?"SIFT1M(real)":"synthetic",MBASE,D);
+    printf("\n#### n=%d  mode=%s  data=%s  nq=%d  (index: M=%d efc=100 d=%d L2; per-query-local correlation)\n",N,mode.c_str(),REAL?"SIFT1M(real)":"synthetic",NQ,MBASE,D);
     if(mode!="standard") printf("#### params: gamma=%d m_beta=%d bridge_ratio=%.2f aef_thr=%.4f\n",gamma,m_beta,bridge,aef);
     for(int ci=0;ci<3;ci++){ std::string corr=corrs[ci];
       printf("\n=== correlation=%s ===  (cell = recall/us per ef ; best = recall @ ef, us, ndis)\n", corr.c_str());
       printf("%6s %8s |", "sel","cand"); for(int ef:EFS) printf("   ef=%-4d ",ef); printf("  | best: recall  us   ndis\n");
-      for(int cc=0;cc<8;cc++){ int cand=cands[cc]; if(cand<K)cand=K; auto mask=mkfilter(corr,cand); Sel sel; sel.m=&mask;
-        // ground truth
+      for(int cc=0;cc<8;cc++){ int cand=cands[cc]; if(cand<K)cand=K;
+        std::vector<std::vector<char>> masks(NQ); for(int i=0;i<NQ;i++) masks[i]=mk_mask(corr,cand,i);
+        // ground truth — each query against its OWN mask
         std::vector<std::unordered_set<faiss::idx_t>> tr(NQ); { std::vector<faiss::idx_t> ii(K); std::vector<float> dd(K);
-          for(int i=0;i<NQ;i++){int nr=exact_filtered_search(IDX,&Q[(size_t)i*D],K,&sel,ii.data(),dd.data()); for(int j=0;j<nr;j++)tr[i].insert(ii[j]);} }
+          for(int i=0;i<NQ;i++){Sel s; s.m=&masks[i]; int nr=exact_filtered_search(IDX,&Q[(size_t)i*D],K,&s,ii.data(),dd.data()); for(int j=0;j<nr;j++)tr[i].insert(ii[j]);} }
         printf("%5.1f%% %8d |", 100.0*cand/N, cand);
         double bestR=-1,bestUs=0,bestNd=0; int bestEf=0;
         for(int ef:EFS){ std::vector<double> lat; double rec=0; int den=0; double nd=0;
           std::vector<faiss::idx_t> ii(K); std::vector<float> dd(K);
-          for(int w=0;w<2;w++){SearchStats s; if(mode=="standard")filtered_search(IDX,&Q[0],K,ef,FilteredHnswSearchMode::STANDARD,&sel,ii.data(),dd.data(),&s);
-            else if(mode=="acorn")filtered_search(IDX,&Q[0],K,ef,FilteredHnswSearchMode::ACORN,&sel,ii.data(),dd.data(),&s);
-            else {RacornParams p;p.bridge_ratio=bridge;p.enable_aef=(mode=="racorn_plus");p.aef_threshold=aef;racorn_search(IDX,&Q[0],K,ef,&sel,p,ii.data(),dd.data(),&s);}}
-          for(int i=0;i<NQ;i++){SearchStats s;auto t0=clk::now();int nr;
-            if(mode=="standard")nr=filtered_search(IDX,&Q[(size_t)i*D],K,ef,FilteredHnswSearchMode::STANDARD,&sel,ii.data(),dd.data(),&s);
-            else if(mode=="acorn")nr=filtered_search(IDX,&Q[(size_t)i*D],K,ef,FilteredHnswSearchMode::ACORN,&sel,ii.data(),dd.data(),&s);
-            else {RacornParams p;p.bridge_ratio=bridge;p.enable_aef=(mode=="racorn_plus");p.aef_threshold=aef;nr=racorn_search(IDX,&Q[(size_t)i*D],K,ef,&sel,p,ii.data(),dd.data(),&s);}
-            auto t1=clk::now();lat.push_back(std::chrono::duration<double,std::micro>(t1-t0).count());nd+=s.dist_computations;
+          { Sel s0; s0.m=&masks[0]; for(int w=0;w<2;w++){SearchStats s;
+              if(mode=="standard")filtered_search(IDX,&Q[0],K,ef,FilteredHnswSearchMode::STANDARD,&s0,ii.data(),dd.data(),&s);
+              else if(mode=="acorn")filtered_search(IDX,&Q[0],K,ef,FilteredHnswSearchMode::ACORN,&s0,ii.data(),dd.data(),&s);
+              else {RacornParams p;p.bridge_ratio=bridge;p.enable_aef=(mode=="racorn_plus");p.aef_threshold=aef;racorn_search(IDX,&Q[0],K,ef,&s0,p,ii.data(),dd.data(),&s);}} }
+          for(int i=0;i<NQ;i++){Sel s; s.m=&masks[i]; SearchStats st;auto t0=clk::now();int nr;
+            if(mode=="standard")nr=filtered_search(IDX,&Q[(size_t)i*D],K,ef,FilteredHnswSearchMode::STANDARD,&s,ii.data(),dd.data(),&st);
+            else if(mode=="acorn")nr=filtered_search(IDX,&Q[(size_t)i*D],K,ef,FilteredHnswSearchMode::ACORN,&s,ii.data(),dd.data(),&st);
+            else {RacornParams p;p.bridge_ratio=bridge;p.enable_aef=(mode=="racorn_plus");p.aef_threshold=aef;nr=racorn_search(IDX,&Q[(size_t)i*D],K,ef,&s,p,ii.data(),dd.data(),&st);}
+            auto t1=clk::now();lat.push_back(std::chrono::duration<double,std::micro>(t1-t0).count());nd+=st.dist_computations;
             auto&T=tr[i];if(!T.empty()){int h=0;for(int j=0;j<nr;j++)if(T.count(ii[j]))h++;rec+=double(h)/T.size();den++;}}
           std::sort(lat.begin(),lat.end()); double r=den?rec/den:0; double p50=lat[lat.size()/2],p95=lat[(size_t)(0.95*(lat.size()-1))],mn=std::accumulate(lat.begin(),lat.end(),0.0)/lat.size();
           printf(" %.2f/%5.0f", r, mn);
