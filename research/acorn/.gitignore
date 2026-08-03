@@ -1,0 +1,4 @@
+build/
+*.o
+data/
+opensearch-benchmark/raw-results/param_*.csv

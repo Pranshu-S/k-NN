@@ -1,0 +1,4 @@
+conc_100k_d128,100000,128,l2,threads=1,qps=5431.0,queries=500,sec=0.092
+conc_100k_d128,100000,128,l2,threads=4,qps=20011.3,queries=2000,sec=0.100
+conc_100k_d128,100000,128,l2,threads=8,qps=40514.7,queries=4000,sec=0.099
+conc_100k_d128,100000,128,l2,threads=16,qps=37574.7,queries=8000,sec=0.213

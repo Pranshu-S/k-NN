@@ -1,0 +1,29 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "refresh_interval": "-1"
+    }
+  },
+  "mappings": {
+    "properties": {
+      "v": {
+        "type": "knn_vector",
+        "dimension": 128,
+        "method": {
+          "name": "hnsw",
+          "engine": "faiss",
+          "space_type": "l2",
+          "parameters": { "m": 16, "ef_construction": 100 }
+        }
+      },
+      "category": { "type": "keyword" },
+      "brand":    { "type": "keyword" },
+      "available":{ "type": "boolean" },
+      "region":   { "type": "keyword" },
+      "tenant":   { "type": "keyword" }
+    }
+  }
+}

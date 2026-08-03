@@ -1,0 +1,25 @@
+Scenario: 1%-selective filter, eligible set in a DIFFERENT vector region than the query.
+d=128 k=10 ef_search=200, 20 queries.  'work' = distance computations per query.
+
+N (index) | approach                           |  recall | work/query |    latency
+----------+------------------------------------+---------+------------+-----------
+   100000 | eligible (1% of index)             |         |      1000  |
+   100000 | OpenSearch today (filtered HNSW)   |   1.00  |     99960  |    23.80ms
+   100000 | Exact over eligible                |   1.00  |      1000  |     0.17ms
+   100000 | RACORN-1+ (proposed fix)           |   0.95  |      1428  |     1.21ms
+----------+------------------------------------+---------+------------+-----------
+   250000 | eligible (1% of index)             |         |      2500  |
+   250000 | OpenSearch today (filtered HNSW)   |   1.00  |    179542  |    51.08ms
+   250000 | Exact over eligible                |   1.00  |      2500  |     0.44ms
+   250000 | RACORN-1+ (proposed fix)           |   0.75  |      2290  |     1.43ms
+----------+------------------------------------+---------+------------+-----------
+   500000 | eligible (1% of index)             |         |      5000  |
+   500000 | OpenSearch today (filtered HNSW)   |   1.00  |    132981  |    40.69ms
+   500000 | Exact over eligible                |   1.00  |      5000  |     0.99ms
+   500000 | RACORN-1+ (proposed fix)           |   0.75  |      4049  |     2.51ms
+----------+------------------------------------+---------+------------+-----------
+  1000000 | eligible (1% of index)             |         |     10000  |
+  1000000 | OpenSearch today (filtered HNSW)   |   0.94  |    265385  |    83.79ms
+  1000000 | Exact over eligible                |   1.00  |     10000  |     2.09ms
+  1000000 | RACORN-1+ (proposed fix)           |   0.85  |      9230  |     4.03ms
+----------+------------------------------------+---------+------------+-----------
