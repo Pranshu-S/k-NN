@@ -107,3 +107,52 @@ applied to vectors).
 **One line:** HNSW answers "how do I navigate to the neighbourhood?" The next generation
 answers "**do I even need to navigate?**" — and the data says: with metadata pruning, 1-bit
 SIMD scans, and a self-aware router, mostly you don't.
+
+---
+
+## Part D — Phase 2 prototype: partition-sketch pruning (results)
+
+`bench_partition.cpp`: partition vectors into P IVF-style cells; per-cell "sketch" = which
+docs are eligible (filter ∩ cell); rank cells by centroid distance, **skip cells with 0
+eligible**, probe the nearest `nprobe` eligible-containing cells, distance only their eligible
+docs. Compared to full exact (scan ALL eligible). SIFT1M @100K, P=512.
+
+**Size cost — small (the main question):** partition id ~4 B/vector; per-cell sketch is
+derived from filter data Lucene already stores (inverted index / doc-values) — a per-cell
+doc-bitmap + counts, a few % of index. **Nothing like ACORN-γ (9–33× build, 1.3–3.2× size).**
+
+**Results (recall / latency / #distances):**
+| filter type | full exact | pruned np=64 |
+|---|---|---|
+| scattered (`no`) 25% | 1.00 / 2033µs / 25000 | **0.99 / 417µs / 3432** (5× faster) 🟢 |
+| scattered (`no`) 5% | 1.00 / 580µs / 5000 | **0.98 / 130µs / 698** (4.5×) 🟢 |
+| compact far cluster 25% | 1.00 / 1831µs | 0.76 / 283µs (6.5× faster, but recall 0.76) 🟡 |
+| diffuse far shell 25% | 1.00 / 1700µs | ≤0.11 (fails — eligible spread across ~1250 cells) 🔴 |
+
+**Verdict (honest correction):** Phase 2 is **filtered IVF with sketch-based empty-cell
+skipping**, and it inherits IVF's weakness — centroid-distance ranking guides well when
+eligible docs are near/scattered, poorly when they're far (far cells are ~equidistant, so
+ordering is noisy). So:
+- ✅ scattered / near-correlated filters (the common case): a real, cheap win (~5× at ~0.98),
+  negligible size overhead.
+- 🟡 compact far cluster: a graceful **recall/latency knob** (0.76 @ 6.5×; raise nprobe for
+  more), still far better than ANN's 0.00.
+- ❌ it does **not** cheaply solve negative correlation — finding the *nearest* members of a
+  *far* set is fundamentally ~O(eligible). Phase 2 softens it into a tunable tradeoff; it
+  doesn't erase it. Lever to improve far-cluster recall: more/tighter cells (higher P).
+
+---
+
+## Part E — Seeded entry points (the one lever we never pulled)
+
+**Observation:** every technique above (ACORN, γ, RACORN, sketches) keeps HNSW's **fixed entry
+point** and tries to *reach out* from the entry→query corridor. None change *where the walk
+starts*. Negative correlation fails because the walk only ever sees that corridor + the query
+neighbourhood, and the eligible docs are outside it.
+
+**Idea:** for a filtered query, **seed the graph walk from a few eligible docs** (sampled from
+the filter, or one representative per eligible-containing cell from Phase 2's sketch) instead
+of the fixed top node — start *inside* the eligible region, then walk toward the query on the
+predicate subgraph to reach the nearest eligible. This sidesteps the entry→eligible traversal
+that ACORN fights. (Lucene's filtered HNSW already does a form of this.) Prototype + verification
+in progress.
