@@ -1,0 +1,34 @@
+
+==== ACORN-gamma build/size cost (gamma=12 -> M=192) ====
+            | build time | edge storage (proxy for index size)
+standard M16|     7.99s  |   13.2 MB
+gamma  M192 |    22.38s  |  154.0 MB   (2.8x build, 11.6x edges)
+
+==== per-query work at each method's best-recall ef (dimension-invariant) ====
+   sel | standard rec/dist/insp/ef  | ACORN-1  rec/dist/insp/ef  | ACORN-g  rec/dist/insp/ef 
+    1% | 0.89 / 3200 /  6331 /320 | 0.84 /  443 /109673 /320 | 0.44 /  419 / 26441 /320
+    5% | 1.00 / 3200 /  6331 /320 | 1.00 / 1392 /101068 /320 | 0.95 / 1170 / 54956 /320
+   25% | 1.00 / 3200 /  6331 /320 | 1.00 / 1498 / 10708 / 40 | 1.00 / 1673 / 14536 / 80
+
+==== latency us as distances get expensive (each at best-recall ef); xN vs standard ====
+
+-- scattered 1% selectivity (ef*: std=320 acorn1=320 gamma=320) --
+   dim | standard us   | ACORN-1 us (x)       | ACORN-g us (x)      
+  128D | 469           | 495      0.95x        | 101      4.63x(win)
+ 1024D | 2732          | 883      3.09x(win)   | 391      6.99x(win)
+ 2048D | 5652          | 1244     4.54x(win)   | 745      7.59x(win)
+ 4096D | 10817         | 2024     5.34x(win)   | 1451     7.46x(win)
+
+-- scattered 5% selectivity (ef*: std=320 acorn1=320 gamma=320) --
+   dim | standard us   | ACORN-1 us (x)       | ACORN-g us (x)      
+  128D | 481           | 700      0.69x        | 359      1.34x(win)
+ 1024D | 2722          | 1732     1.57x(win)   | 1184     2.30x(win)
+ 2048D | 5454          | 2968     1.84x(win)   | 2382     2.29x(win)
+ 4096D | 10966         | 5545     1.98x(win)   | 4190     2.62x(win)
+
+-- scattered 25% selectivity (ef*: std=320 acorn1=40 gamma=80) --
+   dim | standard us   | ACORN-1 us (x)       | ACORN-g us (x)      
+  128D | 500           | 219      2.29x(win)   | 202      2.48x(win)
+ 1024D | 2718          | 1406     1.93x(win)   | 1391     1.95x(win)
+ 2048D | 5424          | 2670     2.03x(win)   | 3203     1.69x(win)
+ 4096D | 10922         | 5234     2.09x(win)   | 5697     1.92x(win)

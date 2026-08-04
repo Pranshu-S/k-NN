@@ -1,0 +1,32 @@
+
+######## correlation=pos : plain IVF vs sketch-pruned IVF (best recall>=0.95 latency) ########
+   sel | plain IVF (rec/us/np)  | sketch IVF (rec/us/np) | sketch speedup
+  0.1% | 1.00 /  1177 / 64   | 0.97 /    70 / 16   | 16.89x
+  1.0% | 1.00 /  1170 / 64   | 1.00 /   156 / 64   | 7.50x
+  5.0% | 1.00 /  1169 / 64   | 1.00 /   410 / 64   | 2.85x
+ 10.0% | 1.00 /  1216 / 64   | 1.00 /   709 / 64   | 1.72x
+ 25.0% | 1.00 /  1179 / 64   | 1.00 /  2320 / 64   | 0.51x
+
+######## correlation=fc : plain IVF vs sketch-pruned IVF (best recall>=0.95 latency) ########
+   sel | plain IVF (rec/us/np)  | sketch IVF (rec/us/np) | sketch speedup
+  0.1% | 1.00 / 20206 / 512  | 1.00 /    94 / 512  | 214.01x
+  1.0% | 1.00 / 15023 / 512  | 1.00 /   160 / 512  | 94.14x
+  5.0% | 1.00 / 15179 / 512  | 1.00 /   504 / 512  | 30.12x
+ 10.0% | 1.00 / 19494 / 512  | 1.00 /   941 / 512  | 20.72x
+ 25.0% | 1.00 / 11781 / 512  | 1.00 /  2368 / 256  | 4.98x
+
+######## correlation=neg : plain IVF vs sketch-pruned IVF (best recall>=0.95 latency) ########
+   sel | plain IVF (rec/us/np)  | sketch IVF (rec/us/np) | sketch speedup
+  0.1% | 1.00 / 22301 / 512  | 1.00 /    95 / 256  | 234.20x
+  1.0% | 1.00 / 17622 / 512  | 1.00 /   151 / 256  | 116.79x
+  5.0% | 1.00 / 16632 / 512  | 1.00 /   433 / 512  | 38.45x
+ 10.0% | 1.00 / 14241 / 512  | 1.00 /   807 / 512  | 17.65x
+ 25.0% | 1.00 / 19486 / 512  | 0.98 /  1934 / 256  | 10.07x
+
+######## correlation=no : plain IVF vs sketch-pruned IVF (best recall>=0.95 latency) ########
+   sel | plain IVF (rec/us/np)  | sketch IVF (rec/us/np) | sketch speedup
+  0.1% | 1.00 /  4866 / 256  | 1.00 /    92 / 64   | 52.61x
+  1.0% | 0.96 /  1162 / 64   | 0.98 /    83 / 64   | 14.00x
+  5.0% | 0.98 /  1177 / 64   | 0.98 /   117 / 64   | 10.10x
+ 10.0% | 0.99 /  1177 / 64   | 0.99 /   321 / 64   | 3.67x
+ 25.0% | 0.99 /  1164 / 64   | 0.99 /   670 / 64   | 1.74x

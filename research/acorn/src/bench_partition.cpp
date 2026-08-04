@@ -1,11 +1,11 @@
 /*
- * Phase 2 prototype: filter-sketch partition pruning vs full exact fallback.
+ * Phase 2 prototype: filter-sketch partition pruning vs PLAIN IVF (the fair baseline).
  * Partition vectors into P IVF-style cells (centroids). Per-cell "sketch" = which docs are
- * eligible (filter INTERSECT cell). For a query, rank cells by centroid distance, SKIP cells
- * with 0 eligible docs, probe the nearest `nprobe` eligible-containing cells, and compute
- * distances only for eligible docs in those cells. Compares recall / latency / #distances vs
- * full exact (scan ALL eligible). Focus: negative correlation, where eligible docs cluster
- * far from the query and the near cells are empty of eligible.
+ * eligible (filter INTERSECT cell). Two methods, both sweep nprobe and report the best
+ * recall>=0.95 latency:
+ *   plain IVF  : probe nearest nprobe cells, distance ALL their docs, post-filter (no sketch).
+ *   sketch IVF : SKIP 0-eligible cells, probe nearest nprobe eligible-containing cells,
+ *                distance only eligible docs. The sketch is what we're measuring the value of.
  * Usage: bench_partition [n] [P]   (default 100000 512)
  */
 #include <cstdio>
@@ -52,9 +52,18 @@ int main(int argc,char**argv){
         return s;};
     auto truth=[&](const float*q,const std::vector<char>&m){std::vector<std::pair<float,int>> sc;for(int i=0;i<N;i++)if(m[i])sc.push_back({l2v(q,i),i});std::sort(sc.begin(),sc.end());std::unordered_set<int> t;for(int i=0;i<K&&i<(int)sc.size();i++)t.insert(sc[i].second);return t;};
     using clk=std::chrono::high_resolution_clock;
-    // full exact over eligible
-    auto exact=[&](const float*q,const std::vector<char>&m,uint64_t&dis){std::vector<std::pair<float,int>> sc;for(int i=0;i<N;i++)if(m[i]){sc.push_back({l2v(q,i),i});dis++;}std::partial_sort(sc.begin(),sc.begin()+std::min((int)sc.size(),K),sc.end());std::unordered_set<int> r;for(int i=0;i<K&&i<(int)sc.size();i++)r.insert(sc[i].second);return r;};
-    // partition-pruned: probe nearest nprobe eligible-containing cells
+    // plain IVF (the fair baseline): probe nearest `nprobe` cells regardless of eligibility,
+    // distance EVERY doc in them, then post-filter. No sketch -> pays for non-eligible docs and
+    // wastes probes on cells that hold none.
+    auto ivf=[&](const float*q,const std::vector<char>&m,int nprobe,uint64_t&dis){
+        std::vector<std::pair<float,int>> co(P);for(int c=0;c<P;c++)co[c]={l2(q,&C[(size_t)c*d]),c};
+        int np=std::min(P,nprobe);std::partial_sort(co.begin(),co.begin()+np,co.end());
+        std::vector<std::pair<float,int>> best;
+        for(int t=0;t<np;t++){int c=co[t].second; for(int v:cell[c]){float dd=l2v(q,v);dis++; if(m[v])best.push_back({dd,v});}}
+        std::partial_sort(best.begin(),best.begin()+std::min((int)best.size(),K),best.end());
+        std::unordered_set<int> r;for(int i=0;i<K&&i<(int)best.size();i++)r.insert(best[i].second);return r;
+    };
+    // sketch-pruned filtered IVF: skip 0-eligible cells, distance ONLY eligible docs
     auto pruned=[&](const float*q,const std::vector<char>&m,int nprobe,uint64_t&dis){
         std::vector<std::pair<float,int>> co(P);for(int c=0;c<P;c++)co[c]={l2(q,&C[(size_t)c*d]),c};std::sort(co.begin(),co.end());
         std::vector<std::pair<float,int>> best; int probed=0;
@@ -66,18 +75,24 @@ int main(int argc,char**argv){
         std::unordered_set<int> r;for(int i=0;i<K&&i<(int)best.size();i++)r.insert(best[i].second);return r;
     };
     auto rec=[&](const std::unordered_set<int>&got,const std::unordered_set<int>&tr){if(tr.empty())return 1.0;int h=0;for(int id:got)if(tr.count(id))h++;return double(h)/tr.size();};
-    int NPROBE[4]={1,4,16,64}; double sels[4]={0.01,0.05,0.10,0.25};
-    for(const char* corr:{"fc","neg","no"}){
-        printf("\n########## correlation=%s : full-exact vs partition-pruned (rec / latency-us / #dist) ##########\n",corr);
-        printf("%6s | %-22s",corr,"full exact"); for(int np:NPROBE)printf(" | pruned np=%-3d",np); printf("\n");
+    int NPROBE[6]={1,4,16,64,256,512}; double sels[5]={0.001,0.01,0.05,0.10,0.25};
+    // best config per method = smallest-latency config reaching recall>=0.95, else the max-recall one
+    auto best=[&](bool sketch,const std::vector<std::vector<char>>&M,const std::vector<std::unordered_set<int>>&TR,int d_,double&oR,double&oL,int&oNP){
+        oR=-1;oL=0;oNP=0;double bestGoodL=1e30;bool haveGood=false;
+        for(int np:NPROBE){double r=0,l=0;int den=0;
+            for(int i=0;i<NQ;i++){uint64_t dis=0;auto t0=clk::now();auto g=sketch?pruned(&Q[(size_t)i*d_],M[i],np,dis):ivf(&Q[(size_t)i*d_],M[i],np,dis);auto t1=clk::now();l+=std::chrono::duration<double,std::micro>(t1-t0).count();r+=rec(g,TR[i]);den++;}
+            double R=r/den,L=l/NQ;
+            if(R>=0.95){haveGood=true;if(L<bestGoodL){bestGoodL=L;oR=R;oL=L;oNP=np;}}
+            else if(!haveGood&&R>oR){oR=R;oL=L;oNP=np;}                 // no 0.95 yet: track max recall
+        }
+    };
+    for(const char* corr:{"pos","fc","neg","no"}){
+        printf("\n######## correlation=%s : plain IVF vs sketch-pruned IVF (best recall>=0.95 latency) ########\n",corr);
+        printf("%6s | %-22s | %-22s | %s\n","sel","plain IVF (rec/us/np)","sketch IVF (rec/us/np)","sketch speedup");
         for(double se:sels){int cand=std::max(K,(int)(se*N));
             std::vector<std::vector<char>> M(NQ);std::vector<std::unordered_set<int>> TR(NQ);for(int i=0;i<NQ;i++){M[i]=mask(corr,cand,i);TR[i]=truth(&Q[(size_t)i*d],M[i]);}
-            // full exact
-            {double r=0,l=0,dc=0;int den=0;for(int i=0;i<NQ;i++){uint64_t dis=0;auto t0=clk::now();auto g=exact(&Q[(size_t)i*d],M[i],dis);auto t1=clk::now();l+=std::chrono::duration<double,std::micro>(t1-t0).count();dc+=dis;r+=rec(g,TR[i]);den++;}
-             printf("%5.1f%% | %.2f/%6.0f/%7.0f",100.0*cand/N,r/den,l/NQ,dc/NQ);}
-            for(int np:NPROBE){double r=0,l=0,dc=0;int den=0;for(int i=0;i<NQ;i++){uint64_t dis=0;auto t0=clk::now();auto g=pruned(&Q[(size_t)i*d],M[i],np,dis);auto t1=clk::now();l+=std::chrono::duration<double,std::micro>(t1-t0).count();dc+=dis;r+=rec(g,TR[i]);den++;}
-             printf(" | %.2f/%5.0f/%6.0f",r/den,l/NQ,dc/NQ);}
-            printf("\n");
+            double rI,lI,rP,lP;int npI,npP; best(false,M,TR,d,rI,lI,npI); best(true,M,TR,d,rP,lP,npP);
+            printf("%5.1f%% | %.2f /%6.0f / %-4d | %.2f /%6.0f / %-4d | %.2fx\n",100.0*cand/N,rI,lI,npI,rP,lP,npP,lP>0?lI/lP:0);
         }
     }
     fflush(stdout); std::_Exit(0);
