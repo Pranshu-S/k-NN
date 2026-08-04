@@ -146,9 +146,11 @@ handle negative-correlation filtered search gracefully — they seed from the fi
 small change to OpenSearch's Faiss path and composes with self-aware routing.
 
 **Where it works best.** **Negative correlation** (filter maps to a compact far region), and its
-edge grows **at scale** (1M+), where the exact fallback becomes expensive (~11ms) and a bounded
-seeded walk wins. Honest limit: at high selectivity the eligible *subgraph* fragments, so it
-tops out ~0.88 at 25% (higher ef / denser graph helps); truly *diffuse* far sets stay hard.
+edge is **confirmed at scale**: @1M, compact-far 25% → seeded **3,660µs @ 0.91 recall** vs the
+exact fallback's **19,645µs @ 1.0** — **5.4× faster** (2.1× at 5%). At 100K exact is cheap so
+seeding isn't yet faster; at 1M+ it clearly wins for negative correlation. Honest limit: at high
+selectivity the eligible *subgraph* fragments, so recall tops out ~0.91 at 25% (higher ef /
+denser graph helps); truly *diffuse* far sets stay hard (0.28–0.72).
 
 ---
 
@@ -201,5 +203,25 @@ mechanisms (adaptive fallback + quantize/rescore + seeding) rather than an expen
 | far 5% | 0.00 | 0.00 | 0.00 | **1.00/519** | 1.00/1247 | 1.00/475 |
 | far 25% | 0.00 | 0.00 | 0.00 | 1.00/1812 | 0.92/1600 | 1.00/1774 |
 
-_@1M: pending (grand run in progress) — the row that matters is far/negative at 25%, where
-exact ≈ 11ms and **seeded overtakes the exact fallback**. Appended when it completes._
+### Grand comparison numbers (SIFT1M @ 1,000,000) — the scale story
+| corr / sel | standard | ACORN-1 | ACORN-γ | self-aware | **seeded** | exact |
+|---|---|---|---|---|---|---|
+| pos 25% | 1.00/1390 | 1.00/1401 | 1.00/2315 | **1.00/1387** | 1.00/1402 | 1.00/**18832** |
+| no 25% | 1.00/1394 | 1.00/5133 | **1.00/1012** | 1.00/1389 | 1.00/4537 | 1.00/24395 |
+| far 5% | 0.00 | 0.00 | 0.00 | 1.00/7163 | **0.94/3369** | 1.00/7116 |
+| far 25% | 0.00 | 0.00 | 0.00 | 1.00/**19645** | **0.91/3660** | 1.00/19639 |
+
+**What changes at scale (the key finding):**
+- **Exact blows up** — at 25% selectivity, exact is ~19–24ms (O(eligible) over 250k docs). So on
+  **positive/scattered** filters, self-aware (which stays on the *graph*) is up to **13× faster
+  than always-exact** (pos 25%: 1,387µs vs 18,832µs).
+- **On compact-far (negative), self-aware = exact** (it correctly bails), so it inherits that
+  ~19ms cost. **Seeded overtakes it: far 25% → 3,660µs vs 19,645µs = 5.4× faster** (recall 0.91),
+  far 5% → 3,369µs vs 7,163µs = 2.1×. **This is where seeding earns its keep — negative
+  correlation at scale.**
+- **ACORN-γ's narrow win shows** at scattered high-sel (no 25%: 1,012µs vs standard 1,394µs).
+- **ACORN-1 / ACORN-γ still 0.00** on far/negative — the collapse is unchanged at scale.
+
+**Refined recommendation at scale:** positive/scattered → **self-aware** (graph, avoids the
+exact blow-up); compact-far/negative → **seeded** (2–5× faster than the exact fallback);
+diffuse-far → exact via self-aware (seeded degrades to 0.28–0.72 there — fundamentally hard).
