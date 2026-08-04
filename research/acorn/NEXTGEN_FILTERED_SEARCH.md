@@ -154,5 +154,32 @@ neighbourhood, and the eligible docs are outside it.
 the filter, or one representative per eligible-containing cell from Phase 2's sketch) instead
 of the fixed top node — start *inside* the eligible region, then walk toward the query on the
 predicate subgraph to reach the nearest eligible. This sidesteps the entry→eligible traversal
-that ACORN fights. (Lucene's filtered HNSW already does a form of this.) Prototype + verification
-in progress.
+that ACORN fights. (Lucene's filtered HNSW already does a form of this.)
+
+**Verified (`bench_seeded.cpp`, SIFT1M @100K, seed frontier with ~8 eligible docs + 2-hop):**
+
+| filter type | sel | fixed-entry (ACORN/standard) | **seeded (8 seeds)** |
+|---|---|---|---|
+| compact far cluster | 1% | 0.00 | **1.00** / 370µs |
+| compact far cluster | 5% | 0.00 | **0.98** / 615µs |
+| compact far cluster | 25% | 0.00 | **0.88** / 847µs (vs exact ~1831µs) |
+| diffuse far shell | 5% / 25% | 0.00 | 0.75 / 0.57 (partial) |
+| no correlation | any | 0.98–0.99 | 1.00 (no harm) |
+
+**This is the best filtered-search lever found in the whole investigation.** For realistic
+negative correlation (a filter that maps to a *compact far region*), seeding takes recall from
+**0.00 → 0.88–1.00**, *faster than exact*, where ACORN collapses, ACORN-γ needs 9–33× build,
+and partition pruning tops out at 0.76. Key properties:
+- **Cheap:** ~8 seeds is as good as 128 (the min-distance frontier finds the near-edge eligible
+  regardless of count) → sample a few eligible docs from the filter, microseconds.
+- **Composes** with the 2-hop bridging already built.
+- **Explains Lucene/ES:** they seed the walk from the filter rather than always starting at the
+  fixed top node — a likely reason they handle negative-correlation filtered search gracefully.
+- **Small change** to OpenSearch's Faiss path: seed the frontier from sampled eligible docs.
+
+**Honest limit:** at high selectivity the eligible *subgraph* on the sparse HNSW graph is
+fragmented, so seeded tops out ~0.88 at 25% (some true neighbours sit in unreached components);
+more seeds barely helps (connectivity, not count) — higher `ef` or a denser graph would. Diffuse
+far sets stay fundamentally O(eligible)-hard. But **0.00 → 0.88–1.00 for free** is the result
+nothing else delivered — and it reframes the next-gen direction around **variable entry points**,
+not better graphs.
