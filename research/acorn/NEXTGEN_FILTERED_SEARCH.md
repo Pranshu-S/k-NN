@@ -1,0 +1,109 @@
+# Filtered Vector Search — Learnings & Next-Gen Direction
+
+A durable summary of what this investigation established, the self-aware-ANN result, and
+the forward roadmap. Companion to `ACORN_QUERY_API.md` (the ACORN/RACORN report).
+
+---
+
+## Part A — What we learned (durable, evidence-backed)
+
+1. **Correlation, not selectivity, governs filtered HNSW.** Recall collapses to ~0 under
+   *negative* (cross-domain) correlation at *every* selectivity, because the query-directed
+   walk never reaches the far-away eligible region. Selectivity % alone predicts nothing.
+2. **Filtered HNSW is inspection-bound, not distance-bound.** Measured (SIFT1M, 5% sel):
+   standard examines ~16k neighbours / 4,385 distances; ACORN-1 examines ~85k neighbours /
+   1,254 distances. ACORN does *fewer distances* but *5× more neighbour inspections* — and
+   inspection (selector test + visited check) is what costs the wall-clock.
+3. **ACORN-1 has no wall-clock win on normal (128-D) vectors** — it only wins when distances
+   are *expensive* (≈4096-D → 1.7× faster at 5%). On SIFT it is 1.5–5× *slower* than standard.
+4. **ACORN-γ is a niche win at a brutal cost.** 1.4–4× faster for scattered filters at
+   ~10–30% selectivity, but the paper's own Table 4 shows **9–33× longer index build**
+   (25M vectors: ~10.5 h vs ~19 min) and a denser graph (3.2× index uncompressed; ~1.3×
+   with the paper's two-hop compression).
+5. **Compression cuts size but loses the speed** — a strict trilemma: standard (small+fast),
+   γ-dense (fast, 3.2× big), γ-compressed (1.1× small, but slower than standard).
+6. **The workhorse is the exact fallback, not the graph algorithm.** Across all of RACORN,
+   AEF (Adaptive Exact Fallback) is what fixes *both* negative correlation and low
+   selectivity — for every base — taking recall to 1.0. ASF (graph bridging) is secondary
+   and does nothing for negative correlation. And AEF ≈ what OpenSearch already ships.
+7. **Quantize+rescore helps distance-bound search, not inspection-bound.** It speeds up the
+   STANDARD base (~2× at 25% sel) by making the wide first-pass beam cheap; it *hurts* the
+   ACORN bases (their cost is inspection, which quantization can't cheapen).
+8. **The Elasticsearch filtered-search win = adaptive filtering + quantize/rescore — and
+   OpenSearch has both, off-heap.** `KNNWeight` already has a cardinality-based exact
+   fallback; `QFrameBitEncoder` provides BBQ-class binary quantization (random rotation +
+   ADC); `RescoreContext` provides oversample+rescore; `NativeEngineKnnVectorQuery` composes
+   filter × quantized-first-pass × full-precision-rescore. The gap is tuning/defaults, not
+   architecture. **You do not need on-heap Lucene to get ES-like filtered latency.**
+
+**Net recommendation:** for a general filtered-vector-search system, **standard HNSW +
+adaptive (self-aware) fallback + quantize/rescore** beats ACORN/ACORN-γ. Keep ACORN-γ only
+for the high-dimensional / specific-selectivity niche.
+
+---
+
+## Part B — Self-aware ANN: inline early-abort (proven)
+
+**Idea (refined from RACORN's AEF):** don't probe-then-decide, and don't run the whole
+doomed ANN and fall back *afterwards*. Instead the ANN **monitors its own loss during the
+walk** and **self-routes to exact mid-flight** the moment the filter is clearly fighting it.
+
+**Mechanism** (`bench_selfaware.cpp`):
+- Track running `passed/examined` during the level-0 walk.
+- A **min-probe gate** (`examined > 3·ef`) prevents aborting a walk that just started in a
+  barren patch.
+- Past the gate, if `passed/examined < passThr` (default 0.02) → **abort → exact** over the
+  eligible set. (A *stall* — top-k stops improving — is normal convergence, handled by the
+  existing relative-distance stop; it must NOT trigger exact. That was a bug we caught.)
+
+**Result vs OpenSearch's current post-hoc fallback (SIFT1M @100K, standard base):**
+
+_Negative correlation_ — inline wins (same recall, 4× less wasted ANN):
+| sel | post-hoc (OS today): rec / lat / ANN-examined | inline-abort: rec / lat / ANN-examined |
+|---|---|---|
+| 0.1% | 1.00 / 276µs / **1262** | 1.00 / **167µs** / **308** |
+| 1%   | 1.00 / 345µs / 1262 | 1.00 / **260µs** / 308 |
+| 5%   | 1.00 / 756µs / 1262 | 1.00 / **521µs** / 308 |
+| 10%  | 1.00 / 1364µs / 1262 | 1.00 / **933µs** / 308 |
+| 25%  | 1.00 / 1706µs / 1262 | 1.00 / 1520µs / 308 |
+
+_No correlation_ — fires only when it should:
+| sel | post-hoc | inline-abort |
+|---|---|---|
+| 1%  | 0.95 / 708µs (no fallback) | **1.00 / 326µs** (abort→exact: faster AND higher recall) |
+| 5–25% | 1.00 / ~800µs (full ANN) | 1.00 / ~800µs (**no abort** — correctly runs full ANN) |
+
+**Verdict:** inline early-abort **strictly dominates** the post-hoc fallback — never worse,
+materially better where the filter fights the walk (4× less wasted ANN, 11–40% faster), and
+no false-triggering. Cost: a small **native hook** (the Faiss walk returns early past the
+min-probe gate) rather than a Java post-hoc check. The exact-fallback cost at *high*
+cardinality is unchanged — that is a separate lever (quantized-exact / partition pruning).
+
+**Design lesson (generalizes):** an access method should **monitor its own progress and hand
+off mid-flight**. Inline ANN→exact is the first, proven hand-off.
+
+---
+
+## Part C — Roadmap: a self-aware, cost-based vector query planner
+
+The redefinition is not a better graph — it is **killing the monolithic index and routing
+per query** over a partitioned, scan-native, filter-native substrate (the DB-optimizer move,
+applied to vectors).
+
+- **Phase 1 — Self-aware routing (this doc, Part B).** ANN monitors its own loss and
+  self-routes ANN→exact inline. Highest ROI, mostly already in OpenSearch; the inline hook is
+  the one small addition. Kills the negative-correlation trap without paying for the doomed walk.
+- **Phase 2 — Filter sketches / metadata pruning.** Per-partition attribute metadata (filter
+  bitmaps, cardinality, min/max) so the planner prunes *which regions to even touch* before
+  any vector distance — turning "traverse to find eligible docs" into "look up where they are."
+- **Phase 3 — Scan substrate.** IVF-style partitions + existing binary quant (`QFrameBitEncoder`)
+  + rescore as a first-class engine beside HNSW; the planner arbitrates {exact, filtered-ANN,
+  quantized-partition-scan} per query. When 1-bit SIMD scans are microseconds, navigation
+  stops paying for itself.
+- **Phase 4 — Learn the router.** Fit the cost model online from query logs; eventually a
+  learned partitioner that jointly organizes vectors *and* filter predicates — the index
+  literally organizes around how users filter.
+
+**One line:** HNSW answers "how do I navigate to the neighbourhood?" The next generation
+answers "**do I even need to navigate?**" — and the data says: with metadata pruning, 1-bit
+SIMD scans, and a self-aware router, mostly you don't.
