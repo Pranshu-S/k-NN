@@ -267,6 +267,35 @@ isn't worth a ~1.5–2.5× query win that self-aware routing gets most of for fr
 
 ---
 
+## Reality check — production dimensions & quantization (applies to §2 and §3)
+
+The ACORN speed win requires **expensive distances**. Production embeddings *are* higher-D than
+SIFT (typical **768–1536**: OpenAI ada-002/3-small = 1536, Cohere = 1024, MiniLM = 384), so the
+crossover sits right in the production range — **but only at full precision.** We measured a
+1536-D distance under each representation ([`bench_quant.cpp`](src/bench_quant.cpp),
+[raw](raw-results/quant_1536.txt)):
+
+| 1536-D representation | ns / distance | vs a 128-D SIFT distance |
+|---|---|---|
+| fp32 | 1,071 | **24× more expensive** → ACORN's regime |
+| **int8** (scalar quant) | 55 | **1.2×** (≈ a SIFT distance) |
+| **1-bit** (BBQ / binary) | 7.4 | **0.2×** (cheaper than SIFT) |
+
+And what that does to ACORN-1 vs standard (same graph, scattered 5%):
+
+| kernel | fp32 | int8 | 1-bit |
+|---|---|---|---|
+| ACORN-1 speedup | **1.67× (wins)** | 0.94× (loses) | 0.44× (loses) |
+
+**Quantization erases the win.** int8 makes a 1536-D distance ≈ a SIFT-128 distance; 1-bit makes
+it *cheaper* — both revert the workload to **inspection-bound**, where standard beats ACORN. Since
+production is trending hard to BBQ/scalar quantization (`QFrameBitEncoder`, ES BBQ) exactly to cut
+distance cost, **the realistic setting keeps the SIFT-128 verdict: standard + self-aware beats
+ACORN.** ACORN-1/γ only pay off on **full-precision high-D** indexes — an increasingly narrow niche.
+(Measures cost, not recall; real BBQ adds rotation + rescore, which doesn't help ACORN.)
+
+---
+
 ## 4. RACORN — how it changed cases 1, 2, 3
 
 ### What it is

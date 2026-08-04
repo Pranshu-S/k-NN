@@ -1,0 +1,15 @@
+
+==== cost of ONE 1536-D distance (ns), and vs 128-D fp32 SIFT baseline ====
+  128-D fp32 (SIFT)  :  44.3 ns  (1.0x reference)
+  1536-D fp32        : 1071.2 ns  (24.2x a SIFT distance)
+  1536-D int8        :  55.0 ns  (1.2x SIFT; 19.5x cheaper than fp32-1536)
+  1536-D 1-bit(Hamm) :   7.4 ns  (0.2x SIFT; 145.6x cheaper than fp32-1536)
+
+==== standard vs ACORN-1 latency at 1536-D under each kernel (scattered, ef=200) ====
+   sel | kernel | standard us    | ACORN-1 us     | ACORN-1 speedup
+    5% | fp32   | 2610           | 1562           | 1.67x (ACORN wins)
+    5% | int8   | 443            | 472            | 0.94x (standard wins)
+    5% | 1bit   | 131            | 300            | 0.44x (standard wins)
+   25% | fp32   | 2558           | 3915           | 0.65x (standard wins)
+   25% | int8   | 449            | 901            | 0.50x (standard wins)
+   25% | 1bit   | 136            | 379            | 0.36x (standard wins)
