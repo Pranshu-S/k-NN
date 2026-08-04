@@ -634,6 +634,25 @@ far-filter case.
 | **Compact-far (negative)** | **SA → exact** | **SA → exact**; **seeded** at scale | **seeded** (at scale), else SA→exact |
 | **Diffuse-far** | SA → exact | SA → exact | exact (fundamentally hard) |
 
+### RAM footprint — ACORN-1 (fp32) vs standard (quantized)
+
+ACORN-1 is a *search-time* change on the **same M=16 index as standard** (no inflation, unlike
+ACORN-γ), so "ACORN-1's RAM" = "standard fp32's RAM." The choice therefore reduces to
+**full-precision vs quantized footprint** (1536-D, ~132 B/vec of graph edges measured):
+
+| config | vector B | +graph | **total/vec** | 100M × 1536-D | vs ACORN-1 |
+|---|---|---|---|---|---|
+| **ACORN-1, no quant** (= standard fp32) | 6,144 | 132 | 6,276 B | **~627 GB RAM** (fleet) | 1.0× |
+| standard + int8 | 1,536 | 132 | 1,668 B | ~167 GB | **3.8× less** |
+| **standard + 1-bit (BBQ)** | 192 | 132 | 324 B | **~32 GB RAM** (one box) + fp32 on disk | **19× less** |
+
+**Standard + quantization wins decisively — and it's a *triple* win, not a trade:** (1) **4–19×
+less RAM**; (2) it's the exact regime where ACORN-1 *loses* its latency edge (fp32 1.67× → int8
+0.94× → 1-bit 0.44×, from §3's box); (3) rescore restores near-fp32 recall for pennies. ACORN-1's
+only advantage — full-precision high-D — is *precisely the most RAM-expensive corner*, so choosing
+it means paying the maximum RAM bill for a latency win quantization would erase anyway. Caveat:
+neither touches negative correlation (both 0.00) — that's the §5/§6 axis regardless.
+
 ### How each correlation case improved (before → after)
 | regime | plain HNSW | ACORN-1 | ACORN-γ | RACORN (AEF) | self-aware | seeded | partition (vs plain IVF) | **best outcome** |
 |---|---|---|---|---|---|---|---|---|
