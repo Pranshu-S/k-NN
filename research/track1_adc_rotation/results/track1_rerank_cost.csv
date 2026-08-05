@@ -1,0 +1,11 @@
+dim,recipe,rerank_N,fp32_bytes_per_query,rerank_p50_us,rerank_p99_us,firstpass_ns_per_doc
+128,baseline_rerank100,100,51200,22.9,38.5,67.89
+128,adc_rerank50,50,25600,9.2,11.8,353.46
+384,baseline_rerank100,100,153600,51.0,95.8,63.40
+384,adc_rerank50,50,76800,23.0,36.2,328.59
+768,baseline_rerank100,100,307200,52.9,100.0,124.46
+768,adc_rerank50,50,153600,22.1,38.4,695.86
+1024,baseline_rerank100,100,409600,52.7,88.6,165.08
+1024,adc_rerank50,50,204800,24.7,31.9,947.01
+1536,baseline_rerank100,100,614400,66.8,93.0,244.83
+1536,adc_rerank50,50,307200,32.0,43.8,1415.97

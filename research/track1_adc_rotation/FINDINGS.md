@@ -161,3 +161,31 @@ Next implementation work:
 
 Every number above is flat-scan (scoring-quality); none is a latency/production claim. Confidence
 intervals / multi-seed variance (item 8) are native-tier once latency is in scope.
+
+---
+
+## 8. Cost of the equal-recall operating point: baseline rerank-100 vs ADC rerank-50
+
+Measured with the real `KNNScoringUtil.l2Squared` FP32 scorer (warm/in-memory), plus the
+first-pass per-doc scoring cost. Raw: [`results/track1_rerank_cost.csv`](results/track1_rerank_cost.csv).
+
+| dim | FP32 bytes/query | rerank p50 µs | rerank p99 µs | first-pass ns/doc (Hamming → ADC) |
+|---|---|---|---|---|
+| 128 | 51,200 → **25,600** | 22.9 → **9.2** | 38.5 → **11.8** | 68 → 353 (5.2×) |
+| 768 | 307,200 → **153,600** | 52.9 → **22.1** | 100.0 → **38.4** | 124 → 696 (5.6×) |
+| 1536 | 614,400 → **307,200** | 66.8 → **32.0** | 93.0 → **43.8** | 245 → 1416 (5.8×) |
+
+**Clean wins (real):** FP32 bytes read **exactly halved**; rerank-step latency **~2–3× lower** at
+equal recall. Cold cache would widen both (rerank is I/O-bound on those bytes).
+
+**Undetermined at query level (honest):** ADC's *first pass* is **5–6× costlier per doc** than
+Hamming in this Java scorer (query kept FP32 + asymmetric per-dim scoring vs XOR+popcount).
+Break-even: the ~31 µs rerank saving (@768) is erased once the first pass scores **>~54 nodes** —
+and a real HNSW search scores far more. So a **net query-level p50/p99 win is NOT established here.**
+Two native-tier factors decide it: (1) the production ADC path uses a **batched 8-bit LUT**
+(`faiss_index_bq.h`) that is faster than this scalar Java scorer — the real first-pass penalty is
+smaller than 5–6×; (2) cold cache amplifies the bytes-read win but not compute.
+
+**Refined recommendation:** ADC@50 vs baseline@100 is a **guaranteed win on FP32 bytes read (½) and
+the rerank step (~2×)**; the **net query p99 win requires the native first-pass (LUT) measurement**
+— the decisive next experiment.
