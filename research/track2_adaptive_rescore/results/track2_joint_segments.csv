@@ -1,0 +1,10 @@
+ranker,target,margin,segment,seg_pool,seg_depth,seg_cost,seg_heldout_recall,global_pool,global_depth,global_cost_on_seg,global_meets
+ADC,0.95,0.010,sift_real,400,400,4800,0.9787,1000,1000,12000,true
+ADC,0.95,0.010,isotropic,1000,1000,12000,0.9067,1000,1000,12000,false
+ADC,0.95,0.010,clustered,1000,1000,12000,0.7680,1000,1000,12000,false
+HAMMING,0.95,0.010,sift_real,800,800,8800,0.9717,1000,1000,11000,true
+HAMMING,0.95,0.010,isotropic,1000,1000,11000,0.7390,1000,1000,11000,false
+HAMMING,0.95,0.010,clustered,1000,1000,11000,0.5630,1000,1000,11000,false
+CORRECTED,0.95,0.010,sift_real,1000,1000,13000,0.9787,1000,1000,13000,true
+CORRECTED,0.95,0.010,isotropic,400,400,5200,0.9793,1000,1000,13000,true
+CORRECTED,0.95,0.010,clustered,1000,1000,13000,0.9570,1000,1000,13000,true
