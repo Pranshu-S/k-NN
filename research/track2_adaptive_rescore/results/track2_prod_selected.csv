@@ -1,0 +1,4 @@
+segment,sel_bits,sel_ef,sel_rerank_depth,heldout_recall,mean_nodes,bytes_read_per_query,code_bytes_per_vec,warm_p50_us,warm_p99_us,vs_1bit_bytes,vs_1bit_p50,status,reason
+sift_real,4,50,20,0.9980,510.1,32646,64,124.0,178.4,-0.007,0.811,CALIBRATED_4BIT,cheapest quantized by warm p50 meeting SLA
+isotropic,4,500,30,0.9790,3740.7,1436426,384,4673.8,4896.7,0.000,0.000,CALIBRATED_4BIT,cheapest quantized by warm p50 meeting SLA
+clustered,4,500,100,0.9790,1340.8,514872,384,1793.7,2577.1,0.000,0.000,CALIBRATED_4BIT,cheapest quantized by warm p50 meeting SLA
