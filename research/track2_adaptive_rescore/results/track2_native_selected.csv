@@ -1,0 +1,7 @@
+policy,segment,sel_ranker,sel_ef,sel_rerank_depth,heldout_recall,work_cost,warm_p50_us,warm_p95_us,warm_p99_us,savings_vs_osdefault,gap_to_hindsight,status
+per_segment,sift_real,ADC,500,500,0.9960,7372,518.4,660.5,986.4,-2.821,n/a,CALIBRATED
+os_default(ADC ef100 rr100),sift_real,ADC,100,100,0.9040,1929,145.7,191.4,232.8,0,n/a,MISSES_SLA
+per_segment,isotropic,NONE,0,0,0.3013,0,0,0,0,0,SLA_UNACHIEVABLE
+os_default(ADC ef100 rr100),isotropic,ADC,100,100,0.3150,3839,2082.5,2326.6,2566.8,0,n/a,MISSES_SLA
+per_segment,clustered,NONE,0,0,0.1927,0,0,0,0,0,SLA_UNACHIEVABLE
+os_default(ADC ef100 rr100),clustered,ADC,100,100,0.2210,1535,104.3,164.2,208.0,0,n/a,MISSES_SLA
