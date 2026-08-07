@@ -1,0 +1,8 @@
+segment,bit_width,kernel,heldout_recall,p50_us,p99_us,index_bytes_per_vec,mean_bytes_read,dominated
+sift_real,1,1bit_lut,0.9840,394.6,485.5,16,32754,PARETO
+sift_real,2,2bit_lut,0.9755,86.7,117.2,32,18655,PARETO
+sift_real,4,4bit_lut,0.9980,77.2,110.0,64,34359,PARETO
+sift_real,32,fp32,0.9725,31.6,43.8,512,152078,PARETO
+isotropic,4,4bit_lut,0.9785,2600.9,2677.2,384,1436512,PARETO
+isotropic,32,fp32,0.9900,2588.5,2824.2,3072,11611066,PARETO
+clustered,4,4bit_lut,0.9845,1055.2,1429.2,384,516646,PARETO

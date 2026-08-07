@@ -1,0 +1,10 @@
+segment,objective,sel_bits,sel_kernel,ef_search,rerank_depth,heldout_recall,mean_bytes_read,index_bytes_per_vec,p50_us,p99_us,reason
+sift_real,min_mean_latency,32,fp32,20,10,0.9725,152078,512,31.6,43.8,cheapest under objective
+sift_real,min_p99_latency,32,fp32,20,10,0.9725,152078,512,31.6,43.8,cheapest under objective
+sift_real,memory_aware(lambda_store=0.02us/B,lambda_bw=0.001us/B),2,2bit_lut,50,50,0.9755,18655,32,86.7,117.2,cheapest under objective
+isotropic,min_mean_latency,32,fp32,500,10,0.9900,11611066,3072,2588.5,2824.2,cheapest under objective
+isotropic,min_p99_latency,4,4bit_lut,500,30,0.9785,1436512,384,2600.9,2677.2,cheapest under objective
+isotropic,memory_aware(lambda_store=0.02us/B,lambda_bw=0.001us/B),4,4bit_lut,500,30,0.9785,1436512,384,2600.9,2677.2,cheapest under objective
+clustered,min_mean_latency,4,4bit_lut,500,100,0.9845,516646,384,1055.2,1429.2,cheapest under objective
+clustered,min_p99_latency,4,4bit_lut,500,100,0.9845,516646,384,1055.2,1429.2,cheapest under objective
+clustered,memory_aware(lambda_store=0.02us/B,lambda_bw=0.001us/B),4,4bit_lut,500,100,0.9845,516646,384,1055.2,1429.2,cheapest under objective
