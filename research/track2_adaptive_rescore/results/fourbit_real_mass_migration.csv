@@ -1,0 +1,5 @@
+dataset,dim,uniform_min_feasible_tier,rabitq_ceiling,rabitq_ef95,migrated_to_1bit
+fmnist784,784,2bit,1.0000,50,yes
+iid784,784,4bit,0.9675,500,yes
+iid256,256,4bit,0.9655,500,yes
+nytimes256,256,none,0.6305,-1,n/a
