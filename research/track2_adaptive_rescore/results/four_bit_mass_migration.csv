@@ -1,0 +1,6 @@
+seg,type,dim,N,old_tier,min_quant_feasible_eff_bits,best_rep,moved_below_4bit
+0,sift128,128,8000,1bit,1.0,had_uniform1,no
+1,iid128,128,8000,4bit,4.0,uniform4,no
+2,iid384,384,7000,4bit,4.0,uniform4,no
+3,manifold768,768,6000,4bit,4.0,uniform4,no
+4,iso768,768,5000,4bit,4.0,uniform4,no

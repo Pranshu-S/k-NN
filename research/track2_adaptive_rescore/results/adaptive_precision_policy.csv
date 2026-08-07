@@ -1,0 +1,6 @@
+seg,type,dim,N,selected_rep,selected_eff_bits,min_ef,code_bytes_per_vec
+0,sift128,128,8000,uniform1,1.000,500,16
+1,iid128,128,8000,uniform4,4.000,200,64
+2,iid384,384,7000,uniform4,4.000,500,192
+3,manifold768,768,6000,uniform4,4.000,50,384
+4,iso768,768,5000,uniform4,4.000,200,384
