@@ -1,0 +1,5 @@
+calN,agreement_vs_cal150_pct,segments_changed,mean_abs_bit_diff
+25,93.9,2,0.182
+50,100.0,0,0.000
+100,97.0,1,0.030
+150,100.0,0,0.000

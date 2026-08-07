@@ -1,0 +1,6 @@
+merge_id,dim,type_a,type_b,Na,Nb,srcA_bits,srcB_bits,merged_N,merged_bits,merged_ef
+0,128,sift128,easy128,6000,7000,1bit,4bit,13000,4bit,50
+1,128,sift128,sift128,6500,7400,1bit,1bit,13900,1bit,500
+2,128,easy128,easy128,7000,7800,4bit,4bit,14800,4bit,500
+3,128,sift128,easy128,7500,8200,1bit,4bit,15700,4bit,20
+4,128,easy128,sift128,8000,8600,4bit,1bit,16600,fp32,200

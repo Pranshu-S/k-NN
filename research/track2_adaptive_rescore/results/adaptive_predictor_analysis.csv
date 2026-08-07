@@ -1,0 +1,11 @@
+predictor,pearson_corr_with_log2bits,abs_corr
+recon_err_2b,0.874,0.874
+recon_err_1b,0.874,0.874
+recon_err_4b,0.873,0.873
+cluster_sep,-0.847,0.847
+nn_spread,-0.842,0.842
+probe_ceil_1b_ef50,-0.836,0.836
+anisotropy,-0.825,0.825
+N,0.621,0.621
+intrinsic_dim,0.598,0.598
+dim,0.301,0.301

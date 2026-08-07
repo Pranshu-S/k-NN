@@ -1,0 +1,6 @@
+policy,total_code_MB,vs_all_1bit,vs_fp32,effective_bits_per_dim
+all_1bit,9.5,1.00x,0.031x,1.000
+adaptive,45.3,4.75x,0.148x,4.746
+all_2bit,19.1,2.00x,0.062x,2.000
+all_4bit,38.2,4.00x,0.125x,4.000
+fp32,305.4,32.00x,1.000x,32.000

@@ -1,0 +1,4 @@
+target_recall,effective_bits_per_dim,pct1bit_vec,pct2bit_vec,pct4bit_vec,pctfp32_vec
+0.9,3.319,19.6,21.0,59.4,0.0
+0.95,4.746,19.6,0.0,71.5,9.0
+0.97,7.237,19.6,0.0,63.8,16.6
