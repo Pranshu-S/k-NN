@@ -1,0 +1,13 @@
+dims,N,onebit_MB,twobit_MB,fourbit_MB,fp32_MB,fourbit_vs_fp32,note
+128,1000000,16,32,64,512,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+128,10000000,160,320,640,5120,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+128,100000000,1600,3200,6400,51200,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+384,1000000,48,96,192,1536,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+384,10000000,480,960,1920,15360,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+384,100000000,4800,9600,19200,153600,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+768,1000000,96,192,384,3072,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+768,10000000,960,1920,3840,30720,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+768,100000000,9600,19200,38400,307200,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+1536,1000000,192,384,768,6144,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+1536,10000000,1920,3840,7680,61440,8x,code-only (HNSW graph + fp32-rerank vectors are additional)
+1536,100000000,19200,38400,76800,614400,8x,code-only (HNSW graph + fp32-rerank vectors are additional)

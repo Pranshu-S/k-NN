@@ -1,0 +1,13 @@
+dataset,dim,N,representation,bit_width,kernel,target_recall,ef_search,rerank_depth,heldout_recall,mean_nodes,code_bytes_read,code_bytes_per_vec,p50_us,p99_us,qps_1t,qps_8t,p99_8t,status
+isotropic768,768,8000,1bit,1,1bit_lut,0.90,,,,,,96,,,,,SLA_UNACHIEVABLE
+isotropic768,768,8000,1bit,1,1bit_lut,0.95,,,,,,96,,,,,SLA_UNACHIEVABLE
+isotropic768,768,8000,1bit,1,1bit_lut,0.97,,,,,,96,,,,,SLA_UNACHIEVABLE
+isotropic768,768,8000,2bit,2,2bit_lut,0.90,,,,,,192,,,,,SLA_UNACHIEVABLE
+isotropic768,768,8000,2bit,2,2bit_lut,0.95,,,,,,192,,,,,SLA_UNACHIEVABLE
+isotropic768,768,8000,2bit,2,2bit_lut,0.97,,,,,,192,,,,,SLA_UNACHIEVABLE
+isotropic768,768,8000,4bit,4,4bit_lut,0.90,500,20,0.9380,4340.9,1666919,384,2054.6,2124.0,486,0,0.0,CALIBRATED
+isotropic768,768,8000,4bit,4,4bit_lut,0.95,500,50,0.9700,4340.9,1666919,384,2077.8,2152.3,481,2904,3100.6,CALIBRATED
+isotropic768,768,8000,4bit,4,4bit_lut,0.97,800,100,0.9875,5115.9,1964506,384,2574.4,2673.6,388,0,0.0,CALIBRATED
+isotropic768,768,8000,fp32,32,fp32,0.90,200,10,0.9260,2863.5,8796611,3072,1841.1,2106.8,538,0,0.0,CALIBRATED
+isotropic768,768,8000,fp32,32,fp32,0.95,500,10,0.9790,4346.5,13352494,3072,2893.3,3533.8,339,2546,3647.5,CALIBRATED
+isotropic768,768,8000,fp32,32,fp32,0.97,500,10,0.9790,4346.5,13352494,3072,2875.2,3330.8,342,0,0.0,CALIBRATED

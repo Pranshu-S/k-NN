@@ -1,0 +1,11 @@
+dataset,N,representation,bit_width,kernel,isa,ef_search,rerank_depth,threads,qps,p50_us,p95_us,p99_us,scaling_eff,cache_state
+sift,500000,fp32,32,fp32,arm64,100,10,1,2086,490.5,616.2,665.7,1.000,exceeds_SLC_est
+sift,500000,fp32,32,fp32,arm64,100,10,2,4228,476.5,616.5,719.8,1.013,exceeds_SLC_est
+sift,500000,fp32,32,fp32,arm64,100,10,4,7927,513.0,662.5,739.2,0.950,exceeds_SLC_est
+sift,500000,fp32,32,fp32,arm64,100,10,8,11933,661.9,893.0,964.0,0.715,exceeds_SLC_est
+sift,500000,fp32,32,fp32,arm64,100,10,16,13838,1044.3,1699.5,4213.4,0.415,exceeds_SLC_est
+sift,500000,4bit,4,4bit_lut,arm64,100,20,1,2302,451.8,547.6,601.2,1.000,exceeds_SLC_est
+sift,500000,4bit,4,4bit_lut,arm64,100,20,2,4742,439.1,527.4,560.8,1.030,exceeds_SLC_est
+sift,500000,4bit,4,4bit_lut,arm64,100,20,4,8333,474.4,616.2,738.7,0.905,exceeds_SLC_est
+sift,500000,4bit,4,4bit_lut,arm64,100,20,8,13828,581.6,745.5,806.5,0.751,exceeds_SLC_est
+sift,500000,4bit,4,4bit_lut,arm64,100,20,16,16160,895.7,1417.8,3496.2,0.439,exceeds_SLC_est

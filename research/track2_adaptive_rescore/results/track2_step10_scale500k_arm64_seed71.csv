@@ -1,0 +1,3 @@
+dataset,N,dim,representation,bit_width,kernel,isa,ef_search,rerank_depth,heldout_recall,mean_nodes,code_bytes_per_vec,code_bytes_read_per_query,fp32_workingset_MB,cache_state,p50_us,p90_us,p95_us,p99_us,qps_1t,build_ms,index_code_MB,status
+sift,500000,128,fp32,32,fp32,arm64,100,10,0.9875,1628.0,512,833539,256.0,exceeds_SLC_est,480.1,585.5,616.9,712.0,2112,200086,256.0,CALIBRATED
+sift,500000,128,4bit,4,4bit_lut,arm64,100,20,0.9745,1642.9,64,105148,256.0,exceeds_SLC_est,461.9,530.5,551.0,573.6,2266,562240,32.0,CALIBRATED

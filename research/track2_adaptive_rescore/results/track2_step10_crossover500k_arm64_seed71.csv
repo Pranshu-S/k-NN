@@ -1,0 +1,2 @@
+workload,N,threads,cache_state,fp32_p99,fourbit_p99,fp32_qps,fourbit_qps,p99_winner,qps_winner
+sift_16T,500000,16,exceeds_SLC_est,4213.4,3496.2,13838,16160,4bit,4bit
