@@ -5,9 +5,11 @@
 
 package org.opensearch.knn.research;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopKnnCollector;
+import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
@@ -165,8 +167,44 @@ public class Track2SmartOneBitRealTests extends KNNTestCase {
                 float symDist(int a,int b){ return asymDist(X[a], b); }
                 float[] reconstruct(int i){ float[] o=new float[Dt]; float s=nx[i]/(float)Math.sqrt(Dt); for(int j=0;j<Dt;j++)o[j]=(bit[i][j]==1?s:-s); return o; } };
         }
+        // REAL Lucene OSQ (OptimizedScalarQuantizer): per-vector optimized interval [lo,hi] + corrective
+        // terms, at `bits` bits (1-bit == BBQ family, itself RaBitQ-derived). We use Lucene's scalarQuantize
+        // (the genuine interval optimization) + deQuantize for a consistent reconstruction geometry. Storage
+        // counted = packed bits + 8B/vec (lo,hi). NOTE: Lucene's fast BBQ *corrective-term estimator* is a
+        // further scoring optimization not used here (dequantize-L2 instead) -> a slight lower bound on OSQ.
+        static Rep osq(float[][] X, int bits){ int n=X.length,d=X[0].length; float[] cen=new float[d];
+            for(float[] v:X)for(int j=0;j<d;j++)cen[j]+=v[j]; for(int j=0;j<d;j++)cen[j]/=n;
+            OptimizedScalarQuantizer q=new OptimizedScalarQuantizer(VectorSimilarityFunction.EUCLIDEAN);
+            float[][] rec=new float[n][]; byte[] dest=new byte[d];
+            for(int i=0;i<n;i++){ float[] in=X[i].clone(); OptimizedScalarQuantizer.QuantizationResult res=q.scalarQuantize(in,dest,(byte)bits,cen);
+                float[] out=new float[d]; OptimizedScalarQuantizer.deQuantize(dest,out,(byte)bits,res.lowerInterval(),res.upperInterval(),cen); rec[i]=out; }
+            return new Rep(){ { Rep.this0(this,n,d,(double)bits,(d*bits+7)/8, 8); }
+                float symDist(int a,int b){ return l2(rec[a],rec[b]); }
+                float asymDist(float[] qv,int b){ return l2(qv,rec[b]); }
+                float[] reconstruct(int i){ return rec[i]; } };
+        }
         // helper to set fields from anonymous subclass ctors
         static void this0(Rep r,int n,int d,double eff,int codeB,int side){ r.n=n; r.dim=d; r.effBits=eff; r.codeBytes=codeB; r.sidecar=side; }
+    }
+
+    // Head-to-head: RaBitQ-inspired vs REAL Lucene OSQ (1-bit & 4-bit) vs baselines, on real fashion-mnist-784
+    // (clean euclidean) + iid-784 control. Candidate recall@10 before rerank.
+    public void testOsqVsRabitq() throws IOException {
+        Path dir=outDir(); writeFresh(dir,"step13_osq_vs_rabitq.csv",
+            "dataset,dim,N,rep,eff_bits,code_bytes_per_vec,sidecar_bytes,total_bytes_per_vec,ceil20,ceil50,ceil100,ceil200,ceil500,ceil_max,ef90,ef95,ef97,feasible95,build_ms,nn_overlap10");
+        Object[][] sets = { {"fmnist784",784,20000,"fmnist"}, {"iid784",784,15000,"iid"} };
+        for(Object[] s:sets){ String name=(String)s[0]; int dim=(int)s[1],N=(int)s[2]; String src=(String)s[3];
+            float[][] X=load(src,dim,N,false); float[][] Q=load(src,dim,NQ,true); int[][] gt=groundTruth(X,Q);
+            List<String> rows=new ArrayList<>();
+            rows.add(run(name,dim,N,"uniform1", Rep.uniform(X,1), X,Q,gt));
+            rows.add(run(name,dim,N,"osq_1bit", Rep.osq(X,1), X,Q,gt));
+            rows.add(run(name,dim,N,"rabitq_insp", Rep.rabitq(X,SEED+7), X,Q,gt));
+            rows.add(run(name,dim,N,"osq_4bit", Rep.osq(X,4), X,Q,gt));
+            rows.add(run(name,dim,N,"uniform4", Rep.uniform(X,4), X,Q,gt));
+            rows.add(run(name,dim,N,"fp32", Rep.fp32(X), X,Q,gt));
+            append(dir,"step13_osq_vs_rabitq.csv",rows);
+            System.out.printf(java.util.Locale.ROOT,"[step13-osq] %s done%n",name);
+        }
     }
 
     // ---- transforms ----
