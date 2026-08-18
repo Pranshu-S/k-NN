@@ -1,0 +1,17 @@
+dataset,scorer,metric,mean,min,max
+fmnist784,fp32_flat,k_at_95,10,10,10
+fmnist784,bbq_1bit,k_at_95,75,75,75
+fmnist784,oldrht_bbq,k_at_95,30,30,30
+fmnist784,l16092_bbq,k_at_95,30,30,30
+fmnist784,oldrht_bbq,k_at_95,30,30,30
+fmnist784,l16092_bbq,k_at_95,30,30,30
+fmnist784,oldrht_bbq,k_at_95,30,30,30
+fmnist784,l16092_bbq,k_at_95,30,30,30
+iid784,fp32_flat,k_at_95,500,500,500
+iid784,bbq_1bit,k_at_95,750,750,750
+iid784,oldrht_bbq,k_at_95,750,750,750
+iid784,l16092_bbq,k_at_95,750,750,750
+iid784,oldrht_bbq,k_at_95,750,750,750
+iid784,l16092_bbq,k_at_95,750,750,750
+iid784,oldrht_bbq,k_at_95,750,750,750
+iid784,l16092_bbq,k_at_95,750,750,750

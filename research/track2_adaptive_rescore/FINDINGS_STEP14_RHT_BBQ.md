@@ -1,3 +1,12 @@
+> **Correction (2026-08-18, see [`track2_lucene_16029_followup.md`](track2_lucene_16029_followup.md)):** the storage
+> numbers below (**120 B/vec, 1.224 bits/dim** for 784‑D 1‑bit BBQ) are **overstated**. This harness packed to
+> `discretize(dim,64)=832` (→104 B code) instead of the real Lucene codec's `getDiscreteDimensions=784`
+> (→**98 B** code); with 16 B corrective the true size is **114 B/vec (1.163 bits/dim)**. The extra 48 bits were
+> zeros that contribute nothing to `int4BitDotProduct`, so **every recall/ef number below is unaffected** and has
+> since been independently confirmed bit-identical to the real `Lucene104ScalarQuantizedVectorScorer` (parity error
+> 0). Because both BBQ and RHT→BBQ shared the same (overstated) byte count, the "rotation adds no storage / 3.3×
+> fewer candidates" conclusions stand. Only the absolute byte count is corrected.
+
 # Track 2, Step 14 — Does RHT preconditioning improve Lucene's real 1‑bit OSQ/BBQ?
 
 **Question:** does a random orthogonal (Hadamard) transform before **Lucene's actual production BBQ**
