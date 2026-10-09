@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 * Add BFloat16 (BF16) scalar quantization support [#3190](https://github.com/opensearch-project/k-NN/pull/3190)
 * Support knn queries on native engine fields inside percolator queries by scoring the percolated document with exact search [#3556](https://github.com/opensearch-project/k-NN/pull/3556)
 * Add SQ 2-bit and 4-bit for half_float [#3603](https://github.com/opensearch-project/k-NN/pull/3603)
+* Add 1-bit RaBitQ (`rabitq`) encoder for Faiss IVF, ranking with RaBitQ's distance estimator []()
 
 ### Maintenance
 * Fixed multiple forbidden api warnings from the code []()

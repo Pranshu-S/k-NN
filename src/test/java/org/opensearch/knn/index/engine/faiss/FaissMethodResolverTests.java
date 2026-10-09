@@ -22,9 +22,11 @@ import org.opensearch.knn.index.mapper.Mode;
 import java.util.Map;
 
 import static org.opensearch.knn.common.KNNConstants.ENCODER_FLAT;
+import static org.opensearch.knn.common.KNNConstants.ENCODER_RABITQ;
 import static org.opensearch.knn.common.KNNConstants.ENCODER_SQ;
 import static org.opensearch.knn.common.KNNConstants.METHOD_ENCODER_PARAMETER;
 import static org.opensearch.knn.common.KNNConstants.METHOD_HNSW;
+import static org.opensearch.knn.common.KNNConstants.METHOD_IVF;
 import static org.opensearch.knn.common.KNNConstants.SQ_BITS;
 import static org.opensearch.knn.common.KNNConstants.ENCODER_PARAMETER_PQ_M;
 import static org.opensearch.knn.common.KNNConstants.SQ_BITS;
@@ -304,6 +306,41 @@ public class FaissMethodResolverTests extends KNNTestCase {
         );
 
         validateResolveMethodContext(resolvedMethodContext, CompressionLevel.x32, SpaceType.L2, ENCODER_SQ, false);
+    }
+
+    public void testResolveMethod_whenIVFWithRaBitQ_thenResolveCompressionFromDimension() {
+        ResolvedMethodContext resolvedMethodContext = TEST_RESOLVER.resolveMethod(
+            rabitqContext(METHOD_IVF),
+            KNNMethodConfigContext.builder().vectorDataType(VectorDataType.FLOAT).dimension(128).versionCreated(Version.CURRENT).build(),
+            true,
+            SpaceType.L2
+        );
+        validateResolveMethodContext(resolvedMethodContext, CompressionLevel.x16, SpaceType.L2, ENCODER_RABITQ, false);
+    }
+
+    public void testResolveMethod_whenIVFWithRaBitQAndConflictingCompression_thenThrow() {
+        expectThrows(
+            ValidationException.class,
+            () -> TEST_RESOLVER.resolveMethod(
+                rabitqContext(METHOD_IVF),
+                KNNMethodConfigContext.builder()
+                    .vectorDataType(VectorDataType.FLOAT)
+                    .dimension(128)
+                    .compressionLevel(CompressionLevel.x32)
+                    .versionCreated(Version.CURRENT)
+                    .build(),
+                true,
+                SpaceType.L2
+            )
+        );
+    }
+
+    private KNNMethodContext rabitqContext(String method) {
+        return new KNNMethodContext(
+            KNNEngine.FAISS,
+            SpaceType.L2,
+            new MethodComponentContext(method, Map.of(METHOD_ENCODER_PARAMETER, new MethodComponentContext(ENCODER_RABITQ, Map.of())))
+        );
     }
 
     private KNNMethodContext halfFloatSQContext(int bits) {
